@@ -1,0 +1,25 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "description": "Minimal Dark-Mode Expense Tracker App with User & Admin Panels",
+  "main": "main.js",
+  "scripts": {
+    "build:frontend": "cd frontend && npm.cmd run build",
+    "start:backend": "node backend/server.js",
+    "start:frontend": "npm.cmd --prefix frontend run dev",
+    "start:electron": "npx electron .",
+    "dev": "concurrently --kill-others \"npm.cmd run start:backend\" \"npm.cmd run start:electron\"",
+    "web": "concurrently --kill-others \"npm.cmd run start:backend\" \"npm.cmd run start:frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^34.3.0",
+    "wait-on": "^8.0.2"
+  },
+  "dependencies": {
+    "sharp": "^0.35.3"
+  }
+}

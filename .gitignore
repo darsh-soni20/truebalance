@@ -1,0 +1,16 @@
+# Ignore dependencies
+node_modules/
+**/node_modules/
+
+# Ignore build artifacts
+dist/
+**/dist/
+
+# Ignore log files & SQLite runtime db
+*.log
+*.sqlite
+backend/expense_tracker.db
+
+# Environment variables
+.env
+.env.local
