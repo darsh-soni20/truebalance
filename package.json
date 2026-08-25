@@ -1,25 +1,38 @@
 {
-  "name": "expense-tracker",
-  "version": "1.0.0",
-  "description": "Minimal Dark-Mode Expense Tracker App with User & Admin Panels",
-  "main": "main.js",
+  "name": "truebalance",
+  "version": "2.5.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "start:backend": "node backend/server.js",
-    "start:frontend": "npm --prefix frontend run dev",
-    "start:electron": "npx electron .",
-    "dev": "concurrently --kill-others \"npm run start:backend\" \"npm run start:electron\"",
-    "web": "concurrently --kill-others \"npm run start:backend\" \"npm run start:frontend\""
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "concurrently": "^9.1.2",
-    "electron": "^34.3.0",
-    "wait-on": "^8.0.2"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node backend/server.js"
   },
   "dependencies": {
-    "sharp": "^0.35.3"
+    "autoprefixer": "^10.5.4",
+    "bcryptjs": "^3.0.3",
+    "canvas-confetti": "^1.9.4",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^1.16.0",
+    "postcss": "^8.5.26",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.3.0",
+    "recharts": "^2.15.1",
+    "sharp": "^0.35.3",
+    "sqlite3": "^5.1.7",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.9",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^3.4.19",
+    "vite": "^6.2.0"
   }
 }
