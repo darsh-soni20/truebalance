@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Sun, Moon, LogOut, User, Settings, Calculator, Landmark, Menu, X, Users, Sparkles, PiggyBank, CreditCard, LayoutDashboard, Crown } from 'lucide-react';
+import { Sun, Moon, LogOut, User, Settings, Calculator, Landmark, Menu, X, Users, Sparkles, PiggyBank, CreditCard, LayoutDashboard, Crown, ShieldCheck } from 'lucide-react';
 import ProUpgradeModal from './ProUpgradeModal';
 
 export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, onUserUpdated }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
 
+  const isAdmin = user?.role === 'admin';
   const isPro = user?.plan === 'pro';
 
   const navLinks = [
@@ -26,13 +27,22 @@ export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, o
           <div className="flex justify-between items-center h-20">
             
             {/* TrueBalance Logo */}
-            <Link to="/" className="flex items-center gap-3">
-              <img
-                src={darkMode ? "/assets/logo_dark.png" : "/assets/logo_light.png"}
-                alt="TrueBalance Logo"
-                className="h-16 sm:h-20 max-w-[260px] object-contain transition-all drop-shadow-sm cursor-pointer"
-              />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link to="/" className="flex items-center gap-3">
+                <img
+                  src={darkMode ? "/assets/logo_dark.png" : "/assets/logo_light.png"}
+                  alt="TrueBalance Logo"
+                  className="h-16 sm:h-20 max-w-[260px] object-contain transition-all drop-shadow-sm cursor-pointer"
+                />
+              </Link>
+
+              {isAdmin && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs uppercase tracking-wider shadow-sm">
+                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                  <span>Admin Control Center 🛡️</span>
+                </span>
+              )}
+            </div>
 
             {/* Top Navigation Right Actions */}
             <div className="flex items-center gap-3">
@@ -44,22 +54,32 @@ export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, o
                 {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-600" />}
               </button>
 
-              {user && (
+              {isAdmin ? (
                 <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer relative"
-                  title="Menu"
+                  onClick={onLogout}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-bold text-xs transition-colors cursor-pointer"
                 >
-                  {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                  <LogOut className="w-4 h-4" />
+                  <span>Admin Logout</span>
                 </button>
+              ) : (
+                user && (
+                  <button
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer relative"
+                    title="Menu"
+                  >
+                    {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                  </button>
+                )
               )}
             </div>
 
           </div>
         </div>
 
-        {/* Hamburger Dropdown Drawer Menu */}
-        {menuOpen && user && (
+        {/* Hamburger Dropdown Drawer Menu (Regular User Only) */}
+        {!isAdmin && menuOpen && user && (
           <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-xl animate-fade-in py-4 px-6 space-y-3">
             
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
@@ -154,8 +174,8 @@ export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, o
 
       </nav>
 
-      {/* Pro Upgrade Modal */}
-      {showProModal && (
+      {/* Pro Upgrade Modal (Regular User Only) */}
+      {!isAdmin && showProModal && (
         <ProUpgradeModal
           user={user}
           token={token}
