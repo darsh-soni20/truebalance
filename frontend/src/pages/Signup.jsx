@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Mail, Lock, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, IndianRupee, Wallet } from 'lucide-react';
 import { API_BASE } from '../api';
 
 export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [monthlyBudget, setMonthlyBudget] = useState('25000');
   const [role, setRole] = useState('user');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -17,13 +18,25 @@ export default function Signup() {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    if (!monthlyBudget || parseFloat(monthlyBudget) <= 0) {
+      setError('Please enter a valid monthly spending limit');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: email.trim(), password: password.trim(), role })
+        body: JSON.stringify({
+          name,
+          email: email.trim(),
+          password: password.trim(),
+          role,
+          monthly_budget: parseFloat(monthlyBudget)
+        })
       });
 
       const data = await res.json();
@@ -76,7 +89,7 @@ export default function Signup() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
+                placeholder="Darsh Soni"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
               />
             </div>
@@ -114,6 +127,26 @@ export default function Signup() {
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
               />
             </div>
+          </div>
+
+          {/* Monthly Spending Limit Input */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+              Monthly Spending Limit / Budget (₹)
+            </label>
+            <div className="relative">
+              <Wallet className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-500" />
+              <input
+                type="number"
+                step="500"
+                required
+                value={monthlyBudget}
+                onChange={(e) => setMonthlyBudget(e.target.value)}
+                placeholder="e.g. 25000"
+                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold transition-all"
+              />
+            </div>
+            <span className="text-[10px] text-gray-400 mt-1 block">Set your target monthly expense limit (e.g. ₹25,000)</span>
           </div>
 
           <div>

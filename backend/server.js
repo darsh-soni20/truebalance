@@ -45,12 +45,13 @@ app.get('/api/system/version', (req, res) => {
 // --- AUTH ROUTES ---
 
 app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, monthly_budget } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Please provide name, email, and password' });
   }
 
   const cleanEmail = email.trim().toLowerCase();
+  const userBudget = parseFloat(monthly_budget) > 0 ? parseFloat(monthly_budget) : 25000.0;
 
   try {
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
@@ -58,7 +59,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
     db.run(
       `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
-      [name.trim(), cleanEmail, hashedPassword, userRole, 25000.0],
+      [name.trim(), cleanEmail, hashedPassword, userRole, userBudget],
       function (err) {
         if (err) {
           if (err.message.includes('UNIQUE constraint failed')) {
