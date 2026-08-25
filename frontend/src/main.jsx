@@ -20,12 +20,14 @@ class ErrorBoundary extends React.Component {
   handleReset = () => {
     try {
       localStorage.clear();
+      sessionStorage.clear();
     } catch (e) {}
     window.location.href = '/login';
   };
 
   render() {
     if (this.state.hasError) {
+      const errorText = this.state.error ? (this.state.error.stack || this.state.error.toString()) : 'Unknown Session Error';
       return (
         <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6 text-center">
           <div className="max-w-md w-full bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl space-y-6">
@@ -34,6 +36,9 @@ class ErrorBoundary extends React.Component {
             <p className="text-xs text-gray-400">
               The app cache needs to be updated. Tap below to reload your session cleanly.
             </p>
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-mono text-[10px] break-all text-left max-h-32 overflow-y-auto">
+              {errorText}
+            </div>
             <button
               onClick={this.handleReset}
               className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 cursor-pointer transition-all"

@@ -22,9 +22,11 @@ const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6'
 function AnimatedCounter({ value, prefix = '₹', isPositive = true }) {
   const [displayVal, setDisplayVal] = useState(0);
 
+  const target = (typeof value === 'number' && !isNaN(value) && isFinite(value)) ? Math.abs(value) : 0;
+
   useEffect(() => {
     let start = 0;
-    const end = Math.abs(value);
+    const end = target;
     if (start === end) {
       setDisplayVal(end);
       return;
@@ -47,11 +49,13 @@ function AnimatedCounter({ value, prefix = '₹', isPositive = true }) {
     }, stepTime);
 
     return () => clearInterval(timer);
-  }, [value]);
+  }, [target]);
+
+  const safeNum = (typeof displayVal === 'number' && !isNaN(displayVal) && isFinite(displayVal)) ? displayVal : 0;
 
   return (
     <span>
-      {isPositive ? '+' : '-'}{prefix}{displayVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {isPositive ? '+' : '-'}{prefix}{safeNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </span>
   );
 }
