@@ -28,6 +28,10 @@ db.serialize(() => {
   `, () => {
     // Migration: add plan column if missing
     db.run(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'`, (err) => {});
+    db.run(`ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 1`, (err) => {});
+    db.run(`ALTER TABLE users ADD COLUMN verification_token TEXT`, (err) => {});
+    db.run(`ALTER TABLE users ADD COLUMN reset_token TEXT`, (err) => {});
+    db.run(`ALTER TABLE users ADD COLUMN reset_token_expires DATETIME`, (err) => {});
     // Seed default admin and user if not existing
     db.get(`SELECT id FROM users WHERE email = ?`, ['admin@tracker.com'], async (err, row) => {
       if (!row) {

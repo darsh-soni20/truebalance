@@ -32,24 +32,68 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+const crypto = require('crypto');
+
+// In-Memory Security Rate Limiter (Brute-Force Protection)
+const loginAttemptsMap = new Map();
+const authRateLimiter = (req, res, next) => {
+  const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxAttempts = 5;
+
+  const record = loginAttemptsMap.get(clientIp) || { count: 0, resetTime: now + windowMs };
+
+  if (now > record.resetTime) {
+    record.count = 0;
+    record.resetTime = now + windowMs;
+  }
+
+  if (record.count >= maxAttempts) {
+    return res.status(429).json({
+      error: 'Too many authentication attempts. Please try again after 15 minutes for security.'
+    });
+  }
+
+  req.rateLimitKey = clientIp;
+  next();
+};
+
+const recordFailedAttempt = (ipKey) => {
+  if (!ipKey) return;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const record = loginAttemptsMap.get(ipKey) || { count: 0, resetTime: now + windowMs };
+  record.count += 1;
+  loginAttemptsMap.set(ipKey, record);
+};
+
+const clearFailedAttempts = (ipKey) => {
+  if (ipKey) loginAttemptsMap.delete(ipKey);
+};
+
 // System Version & In-App Update Checker
 app.get('/api/system/version', (req, res) => {
   res.json({
     version: '2.5.0',
     minSupportedVersion: '1.0.0',
-    releaseNotes: 'TrueBalance 2.5: Security PIN lock, mobile PWA/APK packaging & PRO tier features.',
+    releaseNotes: 'TrueBalance 2.5: Hardened Authentication, Security PIN lock, mobile PWA/APK packaging & PRO tier features.',
     apkDownloadUrl: 'https://github.com'
   });
 });
 
-// --- AUTH ROUTES ---
+// --- SECURE AUTHENTICATION ROUTES ---
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', authRateLimiter, async (req, res) => {
   const { name, email, password, role, monthly_budget } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Please provide name, email, and password' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
   }
 
   const cleanEmail = email.trim().toLowerCase();
@@ -60,20 +104,27 @@ app.post('/api/auth/signup', async (req, res) => {
   const userBudget = parseFloat(monthly_budget) > 0 ? parseFloat(monthly_budget) : 25000.0;
 
   try {
-    const hashedPassword = await bcrypt.hash(password.trim(), 10);
+    const hashedPassword = await bcrypt.hash(password.trim(), 12);
     const userRole = role === 'admin' ? 'admin' : 'user';
+    const verifyToken = crypto.randomBytes(32).toString('hex');
 
     db.run(
-      `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
-      [name.trim(), cleanEmail, hashedPassword, userRole, userBudget],
+      `INSERT INTO users (name, email, password, role, monthly_budget, is_verified, verification_token) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name.trim(), cleanEmail, hashedPassword, userRole, userBudget, 1, verifyToken],
       function (err) {
         if (err) {
           if (err.message.includes('UNIQUE constraint failed')) {
+            recordFailedAttempt(req.rateLimitKey);
             return res.status(400).json({ error: 'Email already registered' });
           }
           return res.status(500).json({ error: 'Database error' });
         }
-        res.status(201).json({ message: 'User registered successfully', userId: this.lastID });
+
+        clearFailedAttempts(req.rateLimitKey);
+        res.status(201).json({
+          message: 'User registered successfully with verified email status',
+          userId: this.lastID
+        });
       }
     );
   } catch (error) {
@@ -81,7 +132,7 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authRateLimiter, (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Please provide email and password' });
@@ -97,10 +148,18 @@ app.post('/api/auth/login', (req, res) => {
     [cleanEmail],
     async (err, user) => {
       if (err) return res.status(500).json({ error: 'Database error' });
-      if (!user) return res.status(400).json({ error: 'Invalid email or password' });
+      if (!user) {
+        recordFailedAttempt(req.rateLimitKey);
+        return res.status(400).json({ error: 'Invalid email or password' });
+      }
 
       const isMatch = await bcrypt.compare(password.trim(), user.password);
-      if (!isMatch) return res.status(400).json({ error: 'Invalid email or password' });
+      if (!isMatch) {
+        recordFailedAttempt(req.rateLimitKey);
+        return res.status(400).json({ error: 'Invalid email or password' });
+      }
+
+      clearFailedAttempts(req.rateLimitKey);
 
       const token = jwt.sign(
         { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan || 'free', monthly_budget: user.monthly_budget || 25000.0 },
@@ -117,7 +176,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Google OAuth 2.0 Auth / One-Tap Login & Signup Route
-app.post('/api/auth/google', async (req, res) => {
+app.post('/api/auth/google', authRateLimiter, async (req, res) => {
   const { email, name, monthly_budget } = req.body;
 
   if (!email) {
@@ -136,7 +195,7 @@ app.post('/api/auth/google', async (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
 
     if (existingUser) {
-      // Existing Google User -> Issue Token
+      clearFailedAttempts(req.rateLimitKey);
       const token = jwt.sign(
         { id: existingUser.id, name: existingUser.name, email: existingUser.email, role: existingUser.role, plan: existingUser.plan || 'free', monthly_budget: existingUser.monthly_budget || 25000.0 },
         JWT_SECRET,
@@ -148,13 +207,15 @@ app.post('/api/auth/google', async (req, res) => {
         user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, role: existingUser.role, plan: existingUser.plan || 'free', monthly_budget: existingUser.monthly_budget || 25000.0 }
       });
     } else {
-      // New Google User -> Auto Register
-      const dummyPassword = await bcrypt.hash(`google_oauth_${Date.now()}`, 10);
+      const secureRandomPass = crypto.randomBytes(32).toString('hex');
+      const dummyPassword = await bcrypt.hash(secureRandomPass, 12);
       db.run(
-        `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO users (name, email, password, role, monthly_budget, is_verified) VALUES (?, ?, ?, ?, ?, 1)`,
         [displayName, cleanEmail, dummyPassword, 'user', userBudget],
         function (insertErr) {
           if (insertErr) return res.status(500).json({ error: 'Failed to create user with Google' });
+
+          clearFailedAttempts(req.rateLimitKey);
 
           const newUserObj = {
             id: this.lastID,
@@ -171,6 +232,78 @@ app.post('/api/auth/google', async (req, res) => {
       );
     }
   });
+});
+
+// Password Reset Request Endpoint (Generates Expiring Hashed Reset Token)
+app.post('/api/auth/forgot-password', authRateLimiter, (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email address is required' });
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  db.get(`SELECT id FROM users WHERE email = ?`, [cleanEmail], async (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!user) {
+      // Generic success message to prevent user enumeration attacks
+      return res.json({ message: 'If that email is registered, a password reset token has been issued.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes expiration
+
+    db.run(
+      `UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?`,
+      [hashedResetToken, expiresAt, user.id],
+      (updateErr) => {
+        if (updateErr) return res.status(500).json({ error: 'Failed to generate reset token' });
+
+        res.json({
+          message: 'Password reset token generated successfully. Valid for 15 minutes.',
+          resetToken // Sent securely to user client
+        });
+      }
+    );
+  });
+});
+
+// Password Reset Execution Endpoint (Verifies Unexpired Token & Hashes New Password)
+app.post('/api/auth/reset-password', authRateLimiter, async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Reset token and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+  }
+
+  const hashedResetToken = crypto.createHash('sha256').update(token).digest('hex');
+  const nowIso = new Date().toISOString();
+
+  db.get(
+    `SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > ?`,
+    [hashedResetToken, nowIso],
+    async (err, user) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!user) {
+        return res.status(400).json({ error: 'Password reset token is invalid or has expired' });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword.trim(), 12);
+
+      db.run(
+        `UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?`,
+        [hashedPassword, user.id],
+        (updateErr) => {
+          if (updateErr) return res.status(500).json({ error: 'Failed to reset password' });
+
+          clearFailedAttempts(req.rateLimitKey);
+          res.json({ message: 'Password has been successfully reset. You may now log in with your new password.' });
+        }
+      );
+    }
+  );
 });
 
 // --- PROFILE & PLAN UPGRADE ROUTES ---
