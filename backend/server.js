@@ -555,14 +555,14 @@ app.delete('/api/credit-cards/:id', authenticateToken, (req, res) => {
 // --- ADMIN ROUTES ---
 
 app.get('/api/admin/stats', authenticateToken, requireAdmin, (req, res) => {
-  db.get(`SELECT COUNT(*) as totalUsers FROM users WHERE role = 'user'`, [], (err, userRow) => {
+  db.get(`SELECT COUNT(*) as totalUsers, SUM(CASE WHEN plan = 'pro' THEN 1 ELSE 0 END) as proUsers, SUM(CASE WHEN plan = 'pro' THEN 0 ELSE 1 END) as freeUsers FROM users WHERE role = 'user'`, [], (err, userRow) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch user count' });
 
     db.get(`SELECT COUNT(*) as totalExpenses, COALESCE(SUM(amount), 0) as totalAmount FROM expenses WHERE type = 'expense'`, [], (err, expenseRow) => {
       if (err) return res.status(500).json({ error: 'Failed to fetch expense stats' });
 
       db.all(
-        `SELECT u.id, u.name, u.email, u.created_at, COUNT(e.id) as expenseCount, COALESCE(SUM(e.amount), 0) as totalSpent 
+        `SELECT u.id, u.name, u.email, COALESCE(u.plan, 'free') as plan, u.monthly_budget, u.created_at, COUNT(e.id) as expenseCount, COALESCE(SUM(e.amount), 0) as totalSpent 
          FROM users u 
          LEFT JOIN expenses e ON u.id = e.user_id AND e.type = 'expense'
          WHERE u.role = 'user' 
@@ -573,9 +573,11 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, (req, res) => {
           if (err) return res.status(500).json({ error: 'Failed to fetch user breakdown' });
 
           res.json({
-            totalUsers: userRow.totalUsers,
-            totalExpenses: expenseRow.totalExpenses,
-            totalAmount: expenseRow.totalAmount,
+            totalUsers: userRow.totalUsers || 0,
+            freeUsers: userRow.freeUsers || 0,
+            proUsers: userRow.proUsers || 0,
+            totalExpenses: expenseRow.totalExpenses || 0,
+            totalAmount: expenseRow.totalAmount || 0,
             users: usersList
           });
         }
