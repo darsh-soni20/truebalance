@@ -759,12 +759,15 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
     value: pieDataMap[cat]
   }));
 
-  const userBudget = user?.monthly_budget || 25000;
-  const budgetPercentage = Math.min(Math.round((totalMonthlySpend / userBudget) * 100), 100);
+  const userBudget = (user && typeof user.monthly_budget === 'number' && user.monthly_budget > 0) ? user.monthly_budget : 25000;
+  const rawBudgetPct = (totalMonthlySpend / userBudget) * 100;
+  const budgetPercentage = (isNaN(rawBudgetPct) || !isFinite(rawBudgetPct)) ? 0 : Math.min(Math.round(rawBudgetPct), 100);
   const isBudgetExceeded = totalMonthlySpend > userBudget;
 
-  const savingsRatio = totalIncome > 0 ? (netBalance / totalIncome) : (1 - (totalMonthlySpend / userBudget));
-  const healthScore = Math.max(0, Math.min(100, Math.round((savingsRatio > 0 ? savingsRatio : 0.2) * 100)));
+  const rawRatio = totalIncome > 0 ? (netBalance / totalIncome) : (1 - (totalMonthlySpend / userBudget));
+  const validRatio = (isNaN(rawRatio) || !isFinite(rawRatio)) ? 0.2 : rawRatio;
+  const rawHealth = Math.round((validRatio > 0 ? validRatio : 0.2) * 100);
+  const healthScore = (isNaN(rawHealth) || !isFinite(rawHealth)) ? 80 : Math.max(0, Math.min(100, rawHealth));
   const healthLabel = healthScore >= 75 ? 'Excellent' : healthScore >= 50 ? 'Good' : 'Needs Control';
   const healthColor = healthScore >= 75 ? 'text-emerald-500' : healthScore >= 50 ? 'text-amber-500' : 'text-red-500';
 
