@@ -102,6 +102,38 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   const [showSubModal, setShowSubModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
+  const [showFirstTimeBudgetModal, setShowFirstTimeBudgetModal] = useState(false);
+  const [userBudgetInput, setUserBudgetInput] = useState(user?.monthly_budget ? user.monthly_budget.toString() : '25000');
+
+  useEffect(() => {
+    if (user?.id) {
+      const hasConfigured = localStorage.getItem(`truebalance_budget_configured_${user.id}`);
+      if (!hasConfigured) {
+        setShowFirstTimeBudgetModal(true);
+      }
+    }
+  }, [user]);
+
+  const handleSaveFirstTimeBudget = async (e) => {
+    e.preventDefault();
+    if (!userBudgetInput || parseFloat(userBudgetInput) <= 0) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/user/budget`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ monthly_budget: parseFloat(userBudgetInput) })
+      });
+      const updatedUser = await res.json();
+      if (res.ok && updatedUser) {
+        localStorage.setItem(`truebalance_budget_configured_${user.id}`, 'true');
+        setShowFirstTimeBudgetModal(false);
+        window.location.reload();
+      }
+    } catch (err) {
+      setShowFirstTimeBudgetModal(false);
+    }
+  };
 
   // Modal Form States
   const [splitTitle, setSplitTitle] = useState('');
@@ -1407,6 +1439,49 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                 <input type="number" min="2" required value={splitPeople} onChange={(e) => setSplitPeople(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <button type="submit" className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm shadow-md shadow-amber-500/20 transition-all cursor-pointer">Create Bill Split</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* First-Time Login / Dashboard Budget Setup Modal */}
+      {showFirstTimeBudgetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Welcome, {user?.name || 'User'}! 👋</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Set your target Monthly Spending Limit / Budget (₹) to start tracking effectively.</p>
+            </div>
+
+            <form onSubmit={handleSaveFirstTimeBudget} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                  Monthly Spending Limit / Budget (₹)
+                </label>
+                <div className="relative">
+                  <Wallet className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-500" />
+                  <input
+                    type="number"
+                    step="500"
+                    required
+                    value={userBudgetInput}
+                    onChange={(e) => setUserBudgetInput(e.target.value)}
+                    placeholder="e.g. 25000"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  />
+                </div>
+                <span className="text-[10px] text-gray-400 mt-1 block">You can change this anytime from your dashboard settings.</span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 cursor-pointer transition-all flex items-center justify-center gap-2"
+              >
+                <span>Save Budget & Open Dashboard 🚀</span>
+              </button>
             </form>
           </div>
         </div>

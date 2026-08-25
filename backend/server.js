@@ -195,6 +195,19 @@ app.put('/api/user/upgrade', authenticateToken, (req, res) => {
   });
 });
 
+app.put('/api/user/budget', authenticateToken, (req, res) => {
+  const { monthly_budget } = req.body;
+  const newBudget = parseFloat(monthly_budget) > 0 ? parseFloat(monthly_budget) : 25000.0;
+
+  db.run(`UPDATE users SET monthly_budget = ? WHERE id = ?`, [newBudget, req.user.id], function (err) {
+    if (err) return res.status(500).json({ error: 'Failed to update monthly budget' });
+
+    db.get(`SELECT id, name, email, role, plan, monthly_budget, created_at FROM users WHERE id = ?`, [req.user.id], (err, updatedUser) => {
+      res.json(updatedUser);
+    });
+  });
+});
+
 // --- REAL PAYMENT GATEWAY ROUTES (Razorpay, UPI & Credit Cards) ---
 
 app.post('/api/payments/create-order', authenticateToken, (req, res) => {

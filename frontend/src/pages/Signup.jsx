@@ -222,23 +222,7 @@ export default function Signup() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-              Monthly Spending Limit / Budget (₹)
-            </label>
-            <div className="relative">
-              <Wallet className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-500" />
-              <input
-                type="number"
-                step="500"
-                required
-                value={monthlyBudget}
-                onChange={(e) => setMonthlyBudget(e.target.value)}
-                placeholder="e.g. 25000"
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold transition-all"
-              />
-            </div>
-          </div>
+
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
