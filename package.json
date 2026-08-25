@@ -4,12 +4,12 @@
   "description": "Minimal Dark-Mode Expense Tracker App with User & Admin Panels",
   "main": "main.js",
   "scripts": {
-    "build:frontend": "cd frontend && npm.cmd run build",
+    "build": "cd frontend && npm install && npm run build",
     "start:backend": "node backend/server.js",
-    "start:frontend": "npm.cmd --prefix frontend run dev",
+    "start:frontend": "npm --prefix frontend run dev",
     "start:electron": "npx electron .",
-    "dev": "concurrently --kill-others \"npm.cmd run start:backend\" \"npm.cmd run start:electron\"",
-    "web": "concurrently --kill-others \"npm.cmd run start:backend\" \"npm.cmd run start:frontend\""
+    "dev": "concurrently --kill-others \"npm run start:backend\" \"npm run start:electron\"",
+    "web": "concurrently --kill-others \"npm run start:backend\" \"npm run start:frontend\""
   },
   "keywords": [],
   "author": "",
