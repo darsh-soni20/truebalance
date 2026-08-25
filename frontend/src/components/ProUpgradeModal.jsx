@@ -13,7 +13,7 @@ export default function ProUpgradeModal({ user, token, onClose, onUserUpdated })
   const isPro = user?.plan === 'pro';
 
   const triggerConfetti = () => {
-    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    // Celebration confetti disabled per user request
   };
 
   const handleUpiChange = (newVal) => {

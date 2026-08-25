@@ -153,7 +153,7 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   }, [openCardTrigger]);
 
   const triggerConfetti = () => {
-    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+    // Celebration confetti disabled per user request
   };
 
   const fetchExpenses = async () => {
