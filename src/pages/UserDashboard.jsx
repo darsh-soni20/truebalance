@@ -721,7 +721,13 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
     }
   };
 
-  const monthlyTransactions = expenses.filter((exp) => exp.date.startsWith(selectedMonth));
+  const safeExpenses = Array.isArray(expenses) ? expenses : [];
+  const safeSplits = Array.isArray(splits) ? splits : [];
+  const safeSubscriptions = Array.isArray(subscriptions) ? subscriptions : [];
+  const safeGoals = Array.isArray(goals) ? goals : [];
+  const safeCreditCards = Array.isArray(creditCards) ? creditCards : [];
+
+  const monthlyTransactions = safeExpenses.filter((exp) => exp.date && exp.date.startsWith(selectedMonth));
   const filteredExpenses = monthlyTransactions.filter((exp) => {
     const query = searchQuery.toLowerCase();
     return (

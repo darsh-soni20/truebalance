@@ -307,7 +307,7 @@ app.get('/api/expenses', authenticateToken, (req, res) => {
     [req.user.id],
     (err, rows) => {
       if (err) return res.status(500).json({ error: 'Database error' });
-      res.json(rows);
+      res.json(rows || []);
     }
   );
 });
