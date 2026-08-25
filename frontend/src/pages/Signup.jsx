@@ -155,7 +155,7 @@ export default function Signup() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Darsh Soni"
+                placeholder="Enter your full name or username"
                 className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
               />
             </div>
@@ -297,7 +297,7 @@ export default function Signup() {
                 <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">Your Full Name</label>
                 <input
                   type="text"
-                  placeholder="Darsh Soni"
+                  placeholder="Enter your full name or username"
                   value={googleName}
                   onChange={(e) => setGoogleName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
