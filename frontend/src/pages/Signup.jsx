@@ -86,9 +86,8 @@ export default function Signup() {
     }
   };
 
-  // Redirect directly to Official Google Accounts Sign-In
   const handleGoogleRedirect = () => {
-    window.location.href = `https://accounts.google.com/AccountChooser?Continue=https://accounts.google.com/o/oauth2/auth?response_type%3Dtoken%26client_id%3D717467389270-d7a0v43g7q7k5k50k.apps.googleusercontent.com%26redirect_uri%3D${encodeURIComponent(window.location.origin + '/signup')}%26scope%3Demail%2520profile`;
+    setShowGoogleModal(true);
   };
 
   const handleGoogleAuth = async (emailVal, nameVal) => {
