@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import { Sun, Moon, LogOut, User, Settings, Calculator, Landmark, Menu, X, Users, Sparkles, PiggyBank, CreditCard, LayoutDashboard, Crown } from 'lucide-react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { Sun, Moon, LogOut, User, Settings, Calculator, Landmark, Menu, X, Users, Sparkles, PiggyBank, CreditCard, LayoutDashboard, Crown, ChevronDown, Filter } from 'lucide-react';
 import ProUpgradeModal from './ProUpgradeModal';
 
 export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, onUserUpdated }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const navigate = useNavigate();
 
   const isPro = user?.plan === 'pro';
 
@@ -25,7 +27,7 @@ export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, o
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             
-            {/* TrueBalance Prominent Logo */}
+            {/* TrueBalance Logo */}
             <Link to="/" className="flex items-center gap-3">
               <img
                 src={darkMode ? "/assets/logo_dark.png" : "/assets/logo_light.png"}
@@ -34,43 +36,55 @@ export default function Navbar({ user, token, onLogout, darkMode, setDarkMode, o
               />
             </Link>
 
-            {/* Top Header Router Navigation Tabs (Desktop) */}
+            {/* Clean Filter Dropdown Menu (Only Filter Option in Navbar) */}
             {user && (
-              <div className="hidden lg:flex items-center gap-1 bg-gray-100 dark:bg-gray-800/60 p-1.5 rounded-2xl border border-gray-200/50 dark:border-gray-800/50">
-                {navLinks.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      end={item.path === '/'}
-                      className={({ isActive }) =>
-                        `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-emerald-500 text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
-                        }`
-                      }
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{item.name}</span>
-                      {item.isPro && !isPro && <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-bold">PRO</span>}
-                    </NavLink>
-                  );
-                })}
-
-                {/* PREMIUM 👑 Dedicated Navbar Tab Button */}
+              <div className="relative">
                 <button
-                  onClick={() => setShowProModal(true)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
-                    isPro
-                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                      : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:opacity-95 shadow-amber-500/20'
-                  }`}
+                  onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold transition-all cursor-pointer border border-gray-200 dark:border-gray-700 shadow-sm"
                 >
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>{isPro ? 'Premium 👑' : 'Upgrade PRO 👑'}</span>
+                  <Filter className="w-4 h-4 text-emerald-500" />
+                  <span>Navigate Features</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filterDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
+
+                {/* Filter Dropdown Items */}
+                {filterDropdownOpen && (
+                  <div className="absolute top-12 left-1/2 -translate-x-1/2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl py-2 z-50 animate-fade-in space-y-1">
+                    {navLinks.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => {
+                            navigate(item.path);
+                            setFilterDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Icon className="w-4 h-4 text-emerald-500" />
+                            <span>{item.name}</span>
+                          </div>
+                          {item.isPro && !isPro && <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold">PRO</span>}
+                        </button>
+                      );
+                    })}
+
+                    <div className="border-t border-gray-100 dark:border-gray-800 pt-1">
+                      <button
+                        onClick={() => {
+                          setShowProModal(true);
+                          setFilterDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors text-left cursor-pointer"
+                      >
+                        <Crown className="w-4 h-4 text-amber-500" />
+                        <span>{isPro ? 'Premium Member 👑' : 'Upgrade PRO 👑'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
