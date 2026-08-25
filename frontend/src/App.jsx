@@ -18,10 +18,25 @@ import CalculatorsPage from './pages/CalculatorsPage';
 import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
-  const [user, setUser] = useState(
-    localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
-  );
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('token') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      return null;
+    }
+  });
+
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem('theme') ? localStorage.getItem('theme') === 'dark' : true
   );
