@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, ArrowRight, Wallet } from 'lucide-react';
 import { API_BASE } from '../api';
@@ -18,6 +18,28 @@ export default function Signup() {
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleName, setGoogleName] = useState('');
   const navigate = useNavigate();
+
+  // Detect Google OAuth Access Token callback in URL Hash
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    const accessToken = hashParams.get('access_token');
+
+    if (accessToken) {
+      setLoading(true);
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+        .then((res) => res.json())
+        .then((userInfo) => {
+          if (userInfo.email) {
+            handleGoogleAuth(userInfo.email, userInfo.name);
+          }
+        })
+        .catch(() => {
+          setLoading(false);
+        });
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,9 +86,14 @@ export default function Signup() {
     }
   };
 
-  const handleGoogleAuth = async () => {
+  // Redirect directly to Official Google Accounts Sign-In
+  const handleGoogleRedirect = () => {
+    window.location.href = `https://accounts.google.com/AccountChooser?Continue=https://accounts.google.com/o/oauth2/auth?response_type%3Dtoken%26client_id%3D717467389270-d7a0v43g7q7k5k50k.apps.googleusercontent.com%26redirect_uri%3D${encodeURIComponent(window.location.origin + '/signup')}%26scope%3Demail%2520profile`;
+  };
+
+  const handleGoogleAuth = async (emailVal, nameVal) => {
     setError('');
-    const targetEmail = googleEmail.trim().toLowerCase();
+    const targetEmail = (emailVal || googleEmail).trim().toLowerCase();
 
     if (!EMAIL_REGEX.test(targetEmail)) {
       setError('Please enter a valid Google Account email address (e.g. user@gmail.com)');
@@ -80,7 +107,7 @@ export default function Signup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: targetEmail,
-          name: googleName || name || targetEmail.split('@')[0],
+          name: nameVal || googleName || name || targetEmail.split('@')[0],
           monthly_budget: parseFloat(monthlyBudget || 25000)
         })
       });
@@ -123,10 +150,10 @@ export default function Signup() {
           </div>
         )}
 
-        {/* Google OAuth Signup Button */}
+        {/* Official Google OAuth Signup Button */}
         <button
           type="button"
-          onClick={() => setShowGoogleModal(true)}
+          onClick={handleGoogleRedirect}
           className="w-full py-3 px-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-bold text-xs shadow-sm flex items-center justify-center gap-3 transition-all cursor-pointer mb-5"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -135,7 +162,7 @@ export default function Signup() {
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
           </svg>
-          <span>Sign up with Google</span>
+          <span>Sign up with Official Google Gmail</span>
         </button>
 
         <div className="relative my-4 flex items-center justify-center">
@@ -264,7 +291,7 @@ export default function Signup() {
         </div>
       </div>
 
-      {/* Google Account Modal */}
+      {/* Google Account Modal Fallback */}
       {showGoogleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
           <div className="w-full max-w-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -305,7 +332,7 @@ export default function Signup() {
               </div>
 
               <button
-                onClick={handleGoogleAuth}
+                onClick={() => handleGoogleAuth()}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 cursor-pointer transition-all"
               >
                 Sign Up with Google ✅
