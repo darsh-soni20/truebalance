@@ -44,6 +44,8 @@ app.get('/api/system/version', (req, res) => {
 
 // --- AUTH ROUTES ---
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password, role, monthly_budget } = req.body;
   if (!name || !email || !password) {
@@ -51,6 +53,10 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 
   const cleanEmail = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid, verified email address (e.g. name@gmail.com)' });
+  }
+
   const userBudget = parseFloat(monthly_budget) > 0 ? parseFloat(monthly_budget) : 25000.0;
 
   try {
@@ -82,6 +88,9 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   const cleanEmail = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid verified email address' });
+  }
 
   db.get(
     `SELECT * FROM users WHERE email = ?`,
@@ -105,6 +114,63 @@ app.post('/api/auth/login', (req, res) => {
       });
     }
   );
+});
+
+// Google OAuth 2.0 Auth / One-Tap Login & Signup Route
+app.post('/api/auth/google', async (req, res) => {
+  const { email, name, monthly_budget } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Google account email is required' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Google account email is invalid' });
+  }
+
+  const displayName = name || cleanEmail.split('@')[0];
+  const userBudget = parseFloat(monthly_budget) > 0 ? parseFloat(monthly_budget) : 25000.0;
+
+  db.get(`SELECT * FROM users WHERE email = ?`, [cleanEmail], async (err, existingUser) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+
+    if (existingUser) {
+      // Existing Google User -> Issue Token
+      const token = jwt.sign(
+        { id: existingUser.id, name: existingUser.name, email: existingUser.email, role: existingUser.role, plan: existingUser.plan || 'free', monthly_budget: existingUser.monthly_budget || 25000.0 },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      return res.json({
+        token,
+        user: { id: existingUser.id, name: existingUser.name, email: existingUser.email, role: existingUser.role, plan: existingUser.plan || 'free', monthly_budget: existingUser.monthly_budget || 25000.0 }
+      });
+    } else {
+      // New Google User -> Auto Register
+      const dummyPassword = await bcrypt.hash(`google_oauth_${Date.now()}`, 10);
+      db.run(
+        `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
+        [displayName, cleanEmail, dummyPassword, 'user', userBudget],
+        function (insertErr) {
+          if (insertErr) return res.status(500).json({ error: 'Failed to create user with Google' });
+
+          const newUserObj = {
+            id: this.lastID,
+            name: displayName,
+            email: cleanEmail,
+            role: 'user',
+            plan: 'free',
+            monthly_budget: userBudget
+          };
+
+          const token = jwt.sign(newUserObj, JWT_SECRET, { expiresIn: '24h' });
+          res.status(201).json({ token, user: newUserObj });
+        }
+      );
+    }
+  });
 });
 
 // --- PROFILE & PLAN UPGRADE ROUTES ---
