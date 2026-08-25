@@ -4,7 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import confetti from 'canvas-confetti';
-import { API_BASE } from '../api';
+import { API_BASE, apiFetch } from '../api';
 
 const CATEGORIES = [
   'Food & Dining',
@@ -190,41 +190,41 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
 
   const fetchExpenses = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/expenses`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/expenses`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) setExpenses(data);
+      if (res.ok && Array.isArray(data)) setExpenses(data);
     } catch (err) {} finally { setLoading(false); }
   };
 
   const fetchSplits = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/splits`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/splits`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) setSplits(data);
+      if (res.ok && Array.isArray(data)) setSplits(data);
     } catch (err) {}
   };
 
   const fetchSubscriptions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/subscriptions`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/subscriptions`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) setSubscriptions(data);
+      if (res.ok && Array.isArray(data)) setSubscriptions(data);
     } catch (err) {}
   };
 
   const fetchGoals = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/goals`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/goals`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) setGoals(data);
+      if (res.ok && Array.isArray(data)) setGoals(data);
     } catch (err) {}
   };
 
   const fetchCreditCards = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/credit-cards`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/credit-cards`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) setCreditCards(data);
+      if (res.ok && Array.isArray(data)) setCreditCards(data);
     } catch (err) {}
   };
 
