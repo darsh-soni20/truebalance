@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus, Wallet } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
