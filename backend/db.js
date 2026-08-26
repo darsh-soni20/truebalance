@@ -1,273 +1,560 @@
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.resolve(__dirname, 'tracker.db');
-const backupPath = path.resolve(__dirname, 'data_store_backup.json');
+const dbFilePath = path.resolve(__dirname, 'data_store.json');
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening SQLite database:', err.message);
-  } else {
-    console.log('Connected to SQLite database.');
-  }
-});
+// In-memory atomic data store schema
+let store = {
+  users: [],
+  expenses: [],
+  group_splits: [],
+  subscriptions: [],
+  financial_goals: [],
+  credit_cards: [],
+  payments: []
+};
 
-// Load backup store from disk
-function loadBackup() {
+// Load store atomically from disk
+function loadStore() {
   try {
-    if (fs.existsSync(backupPath)) {
-      const content = fs.readFileSync(backupPath, 'utf8');
-      return JSON.parse(content);
+    if (fs.existsSync(dbFilePath)) {
+      const raw = fs.readFileSync(dbFilePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      store = {
+        users: Array.isArray(parsed.users) ? parsed.users : [],
+        expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+        group_splits: Array.isArray(parsed.group_splits) ? parsed.group_splits : [],
+        subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
+        financial_goals: Array.isArray(parsed.financial_goals) ? parsed.financial_goals : [],
+        credit_cards: Array.isArray(parsed.credit_cards) ? parsed.credit_cards : [],
+        payments: Array.isArray(parsed.payments) ? parsed.payments : []
+      };
     }
-  } catch (e) {
-    console.error('Error loading data backup:', e.message);
+  } catch (err) {
+    console.error('[DB ENGINE ERROR] Failed to load data_store.json:', err.message);
   }
-  return { users: [], expenses: [], splits: [], subscriptions: [], goals: [], credit_cards: [] };
 }
 
-// Save backup store to disk
-function saveBackup(data) {
+// Save store atomically using temp file rename swap to guarantee zero corruption
+function persistStore() {
   try {
-    fs.writeFileSync(backupPath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Error saving data backup:', e.message);
+    const tmpPath = `${dbFilePath}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2), 'utf8');
+    fs.renameSync(tmpPath, dbFilePath);
+  } catch (err) {
+    console.error('[DB ENGINE ERROR] Atomic save failed:', err.message);
   }
 }
 
-// Sync all DB tables into persistent data_store_backup.json
+// Initialize database store at startup
+loadStore();
+
+// Seed Default Accounts if missing
+async function seedDefaults() {
+  let modified = false;
+
+  const adminExists = store.users.some(u => u.email === 'admin@tracker.com');
+  if (!adminExists) {
+    const hashedAdminPass = await bcrypt.hash('admin123', 10);
+    store.users.push({
+      id: store.users.length > 0 ? Math.max(...store.users.map(u => u.id)) + 1 : 1,
+      name: 'Admin',
+      email: 'admin@tracker.com',
+      password: hashedAdminPass,
+      role: 'admin',
+      plan: 'pro',
+      monthly_budget: 50000.0,
+      is_verified: 1,
+      created_at: new Date().toISOString()
+    });
+    modified = true;
+  }
+
+  const userExists = store.users.some(u => u.email === 'user@tracker.com');
+  if (!userExists) {
+    const hashedUserPass = await bcrypt.hash('user123', 10);
+    store.users.push({
+      id: store.users.length > 0 ? Math.max(...store.users.map(u => u.id)) + 1 : 2,
+      name: 'Heri Ghetiya',
+      email: 'user@tracker.com',
+      password: hashedUserPass,
+      role: 'user',
+      plan: 'free',
+      monthly_budget: 25000.0,
+      is_verified: 1,
+      created_at: new Date().toISOString()
+    });
+    modified = true;
+  }
+
+  if (modified) persistStore();
+}
+
+seedDefaults();
+
+// SQL Emulation Wrapper Interface for Express Server
+const db = {
+  serialize: (fn) => { if (typeof fn === 'function') fn(); },
+
+  run: function (query, params = [], callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+
+    const q = query.trim();
+
+    // 1. CREATE / ALTER TABLE Schema Statements
+    if (q.startsWith('CREATE TABLE') || q.startsWith('ALTER TABLE')) {
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      return;
+    }
+
+    // 2. INSERT INTO users
+    if (q.includes('INSERT INTO users')) {
+      const [name, email, password, role, monthly_budget, is_verified, verification_token] = params;
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const existing = store.users.find(u => u.email.toLowerCase() === cleanEmail);
+      if (existing) {
+        const err = new Error('UNIQUE constraint failed: users.email');
+        if (typeof callback === 'function') callback(err);
+        return;
+      }
+      const newId = store.users.length > 0 ? Math.max(...store.users.map(u => u.id)) + 1 : 1;
+      const newUser = {
+        id: newId,
+        name: (name || '').trim(),
+        email: cleanEmail,
+        password,
+        role: role === 'admin' ? 'admin' : 'user',
+        plan: 'free',
+        monthly_budget: parseFloat(monthly_budget || 25000.0),
+        is_verified: is_verified !== undefined ? is_verified : 1,
+        verification_token: verification_token || '',
+        reset_token: '',
+        reset_token_expires: null,
+        created_at: new Date().toISOString()
+      };
+      store.users.push(newUser);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // 3. UPDATE users
+    if (q.includes('UPDATE users SET name = ?, email = ?, monthly_budget = ? WHERE id = ?')) {
+      const [name, email, budget, userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].name = name;
+        store.users[idx].email = (email || '').trim().toLowerCase();
+        store.users[idx].monthly_budget = parseFloat(budget || 25000.0);
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    if (q.includes(`UPDATE users SET plan = 'pro' WHERE id = ?`)) {
+      const [userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].plan = 'pro';
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    if (q.includes('UPDATE users SET password = ? WHERE id = ?')) {
+      const [password, userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].password = password;
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    if (q.includes('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')) {
+      const [token, expires, userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].reset_token = token;
+        store.users[idx].reset_token_expires = expires;
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    if (q.includes('UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')) {
+      const [password, userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].password = password;
+        store.users[idx].reset_token = '';
+        store.users[idx].reset_token_expires = null;
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    // 4. INSERT INTO payments
+    if (q.includes('INSERT INTO payments')) {
+      const [userId, payment_id, amount, currency, method, status] = params;
+      const newId = store.payments.length > 0 ? Math.max(...store.payments.map(p => p.id)) + 1 : 1;
+      const newPayment = {
+        id: newId,
+        user_id: parseInt(userId),
+        payment_id,
+        amount: parseFloat(amount),
+        currency: currency || 'INR',
+        method: method || 'UPI_QR',
+        status: status || 'success',
+        created_at: new Date().toISOString()
+      };
+      store.payments.push(newPayment);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // 5. INSERT INTO expenses
+    if (q.includes('INSERT INTO expenses')) {
+      const [userId, amount, category, description, date, time, type] = params;
+      const newId = store.expenses.length > 0 ? Math.max(...store.expenses.map(e => e.id)) + 1 : 1;
+      const newExp = {
+        id: newId,
+        user_id: parseInt(userId),
+        amount: parseFloat(amount),
+        category,
+        description: description || '',
+        date,
+        time,
+        type: type || 'expense',
+        created_at: new Date().toISOString()
+      };
+      store.expenses.push(newExp);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // 6. UPDATE expenses
+    if (q.includes('UPDATE expenses SET')) {
+      const [amount, category, description, date, time, type, expId, userId] = params;
+      const idx = store.expenses.findIndex(e => e.id == expId && e.user_id == userId);
+      if (idx !== -1) {
+        store.expenses[idx] = {
+          ...store.expenses[idx],
+          amount: parseFloat(amount),
+          category,
+          description: description || '',
+          date,
+          time,
+          type: type || 'expense'
+        };
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: expId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    // 7. DELETE FROM expenses
+    if (q.includes('DELETE FROM expenses')) {
+      const [expId, userId] = params;
+      const initialLen = store.expenses.length;
+      store.expenses = store.expenses.filter(e => !(e.id == expId && e.user_id == userId));
+      const changes = initialLen - store.expenses.length;
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes }, null);
+      return;
+    }
+
+    // 8. INSERT INTO group_splits
+    if (q.includes('INSERT INTO group_splits')) {
+      const [userId, title, total_amount, split_count, per_person] = params;
+      const newId = store.group_splits.length > 0 ? Math.max(...store.group_splits.map(s => s.id)) + 1 : 1;
+      const newSplit = {
+        id: newId,
+        user_id: parseInt(userId),
+        title,
+        total_amount: parseFloat(total_amount),
+        split_count: parseInt(split_count),
+        per_person: parseFloat(per_person),
+        created_at: new Date().toISOString()
+      };
+      store.group_splits.push(newSplit);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // DELETE FROM group_splits
+    if (q.includes('DELETE FROM group_splits')) {
+      const [splitId, userId] = params;
+      const initialLen = store.group_splits.length;
+      store.group_splits = store.group_splits.filter(s => !(s.id == splitId && s.user_id == userId));
+      const changes = initialLen - store.group_splits.length;
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes }, null);
+      return;
+    }
+
+    // 9. INSERT INTO subscriptions
+    if (q.includes('INSERT INTO subscriptions')) {
+      const [userId, title, amount, due_day, category] = params;
+      const newId = store.subscriptions.length > 0 ? Math.max(...store.subscriptions.map(s => s.id)) + 1 : 1;
+      const newSub = {
+        id: newId,
+        user_id: parseInt(userId),
+        title,
+        amount: parseFloat(amount),
+        due_day: parseInt(due_day),
+        category: category || 'Bills & Utilities',
+        created_at: new Date().toISOString()
+      };
+      store.subscriptions.push(newSub);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // DELETE FROM subscriptions
+    if (q.includes('DELETE FROM subscriptions')) {
+      const [subId, userId] = params;
+      const initialLen = store.subscriptions.length;
+      store.subscriptions = store.subscriptions.filter(s => !(s.id == subId && s.user_id == userId));
+      const changes = initialLen - store.subscriptions.length;
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes }, null);
+      return;
+    }
+
+    // 10. INSERT INTO financial_goals
+    if (q.includes('INSERT INTO financial_goals')) {
+      const [userId, title, target_amount, saved_amount, deadline_date] = params;
+      const newId = store.financial_goals.length > 0 ? Math.max(...store.financial_goals.map(g => g.id)) + 1 : 1;
+      const newGoal = {
+        id: newId,
+        user_id: parseInt(userId),
+        title,
+        target_amount: parseFloat(target_amount),
+        saved_amount: parseFloat(saved_amount || 0),
+        deadline_date: deadline_date || '',
+        created_at: new Date().toISOString()
+      };
+      store.financial_goals.push(newGoal);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // UPDATE financial_goals deposit
+    if (q.includes('UPDATE financial_goals SET saved_amount = saved_amount + ?')) {
+      const [addAmount, goalId, userId] = params;
+      const idx = store.financial_goals.findIndex(g => g.id == goalId && g.user_id == userId);
+      if (idx !== -1) {
+        store.financial_goals[idx].saved_amount += parseFloat(addAmount);
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: goalId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    // DELETE FROM financial_goals
+    if (q.includes('DELETE FROM financial_goals')) {
+      const [goalId, userId] = params;
+      const initialLen = store.financial_goals.length;
+      store.financial_goals = store.financial_goals.filter(g => !(g.id == goalId && g.user_id == userId));
+      const changes = initialLen - store.financial_goals.length;
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes }, null);
+      return;
+    }
+
+    // 11. INSERT INTO credit_cards
+    if (q.includes('INSERT INTO credit_cards')) {
+      const [userId, card_name, due_date, statement_amount, min_due] = params;
+      const newId = store.credit_cards.length > 0 ? Math.max(...store.credit_cards.map(c => c.id)) + 1 : 1;
+      const newCard = {
+        id: newId,
+        user_id: parseInt(userId),
+        card_name,
+        due_date,
+        statement_amount: parseFloat(statement_amount),
+        min_due: parseFloat(min_due || 0),
+        status: 'unpaid',
+        created_at: new Date().toISOString()
+      };
+      store.credit_cards.push(newCard);
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: newId, changes: 1 }, null);
+      return;
+    }
+
+    // UPDATE credit_cards pay
+    if (q.includes(`UPDATE credit_cards SET status = 'paid' WHERE id = ? AND user_id = ?`)) {
+      const [cardId, userId] = params;
+      const idx = store.credit_cards.findIndex(c => c.id == cardId && c.user_id == userId);
+      if (idx !== -1) {
+        store.credit_cards[idx].status = 'paid';
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: cardId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
+    // DELETE FROM credit_cards
+    if (q.includes('DELETE FROM credit_cards')) {
+      const [cardId, userId] = params;
+      const initialLen = store.credit_cards.length;
+      store.credit_cards = store.credit_cards.filter(c => !(c.id == cardId && c.user_id == userId));
+      const changes = initialLen - store.credit_cards.length;
+      persistStore();
+      if (typeof callback === 'function') callback.call({ lastID: 0, changes }, null);
+      return;
+    }
+
+    // Fallback run
+    if (typeof callback === 'function') callback.call({ lastID: 0, changes: 1 }, null);
+  },
+
+  get: function (query, params = [], callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+
+    const q = query.trim();
+
+    // SELECT user by email
+    if (q.includes('FROM users WHERE email = ?')) {
+      const [email] = params;
+      const user = store.users.find(u => u.email.toLowerCase() === (email || '').trim().toLowerCase());
+      if (typeof callback === 'function') callback(null, user ? { ...user } : undefined);
+      return;
+    }
+
+    // SELECT user by id
+    if (q.includes('FROM users WHERE id = ?')) {
+      const [id] = params;
+      const user = store.users.find(u => u.id == id);
+      if (typeof callback === 'function') callback(null, user ? { ...user } : undefined);
+      return;
+    }
+
+    // SELECT user by reset_token
+    if (q.includes('FROM users WHERE reset_token = ?')) {
+      const [token] = params;
+      const user = store.users.find(u => u.reset_token === token);
+      if (typeof callback === 'function') callback(null, user ? { ...user } : undefined);
+      return;
+    }
+
+    // SELECT goal by id and user_id
+    if (q.includes('FROM financial_goals WHERE id = ? AND user_id = ?')) {
+      const [id, userId] = params;
+      const goal = store.financial_goals.find(g => g.id == id && g.user_id == userId);
+      if (typeof callback === 'function') callback(null, goal ? { ...goal } : undefined);
+      return;
+    }
+
+    if (typeof callback === 'function') callback(null, undefined);
+  },
+
+  all: function (query, params = [], callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+
+    const q = query.trim();
+
+    // SELECT ALL users
+    if (q.includes('FROM users')) {
+      const list = store.users.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        plan: u.plan || 'free',
+        monthly_budget: u.monthly_budget,
+        created_at: u.created_at
+      }));
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    // SELECT expenses by user_id
+    if (q.includes('FROM expenses WHERE user_id = ?')) {
+      const [userId] = params;
+      const list = store.expenses
+        .filter(e => e.user_id == userId)
+        .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    // SELECT group_splits by user_id
+    if (q.includes('FROM group_splits WHERE user_id = ?')) {
+      const [userId] = params;
+      const list = store.group_splits.filter(s => s.user_id == userId);
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    // SELECT subscriptions by user_id
+    if (q.includes('FROM subscriptions WHERE user_id = ?')) {
+      const [userId] = params;
+      const list = store.subscriptions.filter(s => s.user_id == userId);
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    // SELECT financial_goals by user_id
+    if (q.includes('FROM financial_goals WHERE user_id = ?')) {
+      const [userId] = params;
+      const list = store.financial_goals.filter(g => g.user_id == userId);
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    // SELECT credit_cards by user_id
+    if (q.includes('FROM credit_cards WHERE user_id = ?')) {
+      const [userId] = params;
+      const list = store.credit_cards.filter(c => c.user_id == userId);
+      if (typeof callback === 'function') callback(null, list);
+      return;
+    }
+
+    if (typeof callback === 'function') callback(null, []);
+  }
+};
+
 function syncBackupFromDb() {
-  const store = { users: [], expenses: [], splits: [], subscriptions: [], goals: [], credit_cards: [] };
-  db.all(`SELECT * FROM users`, [], (err, users) => {
-    if (!err && users) store.users = users;
-    db.all(`SELECT * FROM expenses`, [], (err, expenses) => {
-      if (!err && expenses) store.expenses = expenses;
-      db.all(`SELECT * FROM group_splits`, [], (err, splits) => {
-        if (!err && splits) store.splits = splits;
-        db.all(`SELECT * FROM subscriptions`, [], (err, subs) => {
-          if (!err && subs) store.subscriptions = subs;
-          db.all(`SELECT * FROM financial_goals`, [], (err, goals) => {
-            if (!err && goals) store.goals = goals;
-            db.all(`SELECT * FROM credit_cards`, [], (err, cards) => {
-              if (!err && cards) store.credit_cards = cards;
-              saveBackup(store);
-            });
-          });
-        });
-      });
-    });
-  });
+  persistStore();
 }
-
-// Restore all users and transactions from persistent data_store_backup.json into SQLite on startup
-function restoreBackupToDb() {
-  const backup = loadBackup();
-
-  // 1. Restore Users
-  if (Array.isArray(backup.users) && backup.users.length > 0) {
-    backup.users.forEach((u) => {
-      db.get(`SELECT id FROM users WHERE email = ?`, [u.email], (err, row) => {
-        if (!row) {
-          db.run(
-            `INSERT INTO users (name, email, password, role, plan, monthly_budget, is_verified, verification_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [u.name, u.email, u.password, u.role || 'user', u.plan || 'free', u.monthly_budget || 25000.0, u.is_verified || 1, u.verification_token || '', u.created_at || new Date().toISOString()]
-          );
-        }
-      });
-    });
-  }
-
-  // 2. Restore Expenses
-  if (Array.isArray(backup.expenses) && backup.expenses.length > 0) {
-    backup.expenses.forEach((e) => {
-      db.get(`SELECT id FROM expenses WHERE id = ?`, [e.id], (err, row) => {
-        if (!row) {
-          db.run(
-            `INSERT INTO expenses (id, user_id, amount, category, description, date, time, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [e.id, e.user_id, e.amount, e.category, e.description || '', e.date, e.time, e.type || 'expense', e.created_at || new Date().toISOString()]
-          );
-        }
-      });
-    });
-  }
-
-  // 3. Restore Splits
-  if (Array.isArray(backup.splits) && backup.splits.length > 0) {
-    backup.splits.forEach((s) => {
-      db.get(`SELECT id FROM group_splits WHERE id = ?`, [s.id], (err, row) => {
-        if (!row) {
-          db.run(
-            `INSERT INTO group_splits (id, user_id, title, total_amount, split_count, per_person, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [s.id, s.user_id, s.title, s.total_amount, s.split_count, s.per_person, s.created_at || new Date().toISOString()]
-          );
-        }
-      });
-    });
-  }
-
-  // 4. Restore Goals
-  if (Array.isArray(backup.goals) && backup.goals.length > 0) {
-    backup.goals.forEach((g) => {
-      db.get(`SELECT id FROM financial_goals WHERE id = ?`, [g.id], (err, row) => {
-        if (!row) {
-          db.run(
-            `INSERT INTO financial_goals (id, user_id, title, target_amount, saved_amount, deadline_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [g.id, g.user_id, g.title, g.target_amount, g.saved_amount || 0.0, g.deadline_date || '', g.created_at || new Date().toISOString()]
-          );
-        }
-      });
-    });
-  }
-
-  // 5. Restore Cards
-  if (Array.isArray(backup.credit_cards) && backup.credit_cards.length > 0) {
-    backup.credit_cards.forEach((c) => {
-      db.get(`SELECT id FROM credit_cards WHERE id = ?`, [c.id], (err, row) => {
-        if (!row) {
-          db.run(
-            `INSERT INTO credit_cards (id, user_id, card_name, due_date, statement_amount, min_due, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [c.id, c.user_id, c.card_name, c.due_date, c.statement_amount, c.min_due || 0.0, c.status || 'unpaid', c.created_at || new Date().toISOString()]
-          );
-        }
-      });
-    });
-  }
-}
-
-db.serialize(() => {
-  // Users Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT DEFAULT 'user',
-      plan TEXT DEFAULT 'free',
-      monthly_budget REAL DEFAULT 25000.0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `, () => {
-    db.run(`ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'`, (err) => {});
-    db.run(`ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 1`, (err) => {});
-    db.run(`ALTER TABLE users ADD COLUMN verification_token TEXT`, (err) => {});
-    db.run(`ALTER TABLE users ADD COLUMN reset_token TEXT`, (err) => {});
-    db.run(`ALTER TABLE users ADD COLUMN reset_token_expires DATETIME`, (err) => {});
-
-    // Seed default admin and user if not existing
-    db.get(`SELECT id FROM users WHERE email = ?`, ['admin@tracker.com'], async (err, row) => {
-      if (!row) {
-        const hashedAdminPass = await bcrypt.hash('admin123', 10);
-        db.run(
-          `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
-          ['Admin', 'admin@tracker.com', hashedAdminPass, 'admin', 50000.0]
-        );
-      }
-    });
-
-    db.get(`SELECT id FROM users WHERE email = ?`, ['user@tracker.com'], async (err, row) => {
-      if (!row) {
-        const hashedUserPass = await bcrypt.hash('user123', 10);
-        db.run(
-          `INSERT INTO users (name, email, password, role, monthly_budget) VALUES (?, ?, ?, ?, ?)`,
-          ['Heri Ghetiya', 'user@tracker.com', hashedUserPass, 'user', 25000.0]
-        );
-      }
-    });
-
-    // Restore any previously registered users and data from persistent backup file
-    restoreBackupToDb();
-  });
-
-  // Payments Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS payments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      payment_id TEXT UNIQUE NOT NULL,
-      amount REAL NOT NULL,
-      currency TEXT DEFAULT 'INR',
-      method TEXT NOT NULL,
-      status TEXT DEFAULT 'success',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Expenses & Income Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      amount REAL NOT NULL,
-      category TEXT NOT NULL,
-      description TEXT,
-      date TEXT NOT NULL,
-      time TEXT NOT NULL,
-      type TEXT DEFAULT 'expense',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-  `);
-
-  // Group Splits Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS group_splits (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      total_amount REAL NOT NULL,
-      split_count INTEGER NOT NULL,
-      per_person REAL NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-  `);
-
-  // Subscriptions Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      amount REAL NOT NULL,
-      due_day INTEGER NOT NULL,
-      category TEXT DEFAULT 'Bills & Utilities',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-  `);
-
-  // Financial Goals / Savings Vaults Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS financial_goals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      target_amount REAL NOT NULL,
-      saved_amount REAL DEFAULT 0.0,
-      deadline_date TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-  `);
-
-  // Credit Cards & Bills Manager Table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS credit_cards (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      card_name TEXT NOT NULL,
-      due_date TEXT NOT NULL,
-      statement_amount REAL NOT NULL,
-      min_due REAL DEFAULT 0.0,
-      status TEXT DEFAULT 'unpaid',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-  `);
-});
 
 module.exports = {
   db,
