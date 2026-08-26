@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('./db');
+const { db, syncBackupFromDb } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -240,6 +240,7 @@ app.post('/api/auth/signup', signupRateLimiter, authRateLimiter, async (req, res
         }
 
         clearFailedAttempts(req.rateLimitKey);
+        syncBackupFromDb();
         res.status(201).json({
           message: 'User registered successfully with verified email status',
           userId: this.lastID
@@ -335,6 +336,7 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
           if (insertErr) return res.status(500).json({ error: 'Failed to create user with Google' });
 
           clearFailedAttempts(req.rateLimitKey);
+          syncBackupFromDb();
 
           const newUserObj = {
             id: this.lastID,
