@@ -614,6 +614,7 @@ app.post('/api/splits', authenticateToken, (req, res) => {
 app.delete('/api/splits/:id', authenticateToken, (req, res) => {
   db.run(`DELETE FROM group_splits WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id], function (err) {
     if (err) return res.status(500).json({ error: 'Failed to delete split' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Bill split not found or unauthorized' });
     res.json({ message: 'Split deleted' });
   });
 });
@@ -623,7 +624,7 @@ app.delete('/api/splits/:id', authenticateToken, (req, res) => {
 app.get('/api/subscriptions', authenticateToken, (req, res) => {
   db.all(`SELECT * FROM subscriptions WHERE user_id = ? ORDER BY due_day ASC`, [req.user.id], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch subscriptions' });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
@@ -653,6 +654,7 @@ app.post('/api/subscriptions', authenticateToken, (req, res) => {
 app.delete('/api/subscriptions/:id', authenticateToken, (req, res) => {
   db.run(`DELETE FROM subscriptions WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id], function (err) {
     if (err) return res.status(500).json({ error: 'Failed to delete subscription' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Subscription not found or unauthorized' });
     res.json({ message: 'Subscription deleted' });
   });
 });
@@ -662,7 +664,7 @@ app.delete('/api/subscriptions/:id', authenticateToken, (req, res) => {
 app.get('/api/goals', authenticateToken, (req, res) => {
   db.all(`SELECT * FROM financial_goals WHERE user_id = ? ORDER BY created_at DESC`, [req.user.id], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch goals' });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
@@ -700,7 +702,9 @@ app.put('/api/goals/:id/deposit', authenticateToken, (req, res) => {
     [parseFloat(addAmount), req.params.id, req.user.id],
     function (err) {
       if (err) return res.status(500).json({ error: 'Failed to deposit into goal' });
-      db.get(`SELECT * FROM financial_goals WHERE id = ?`, [req.params.id], (err, updatedGoal) => {
+      if (this.changes === 0) return res.status(404).json({ error: 'Goal not found or unauthorized' });
+
+      db.get(`SELECT * FROM financial_goals WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id], (err, updatedGoal) => {
         res.json(updatedGoal);
       });
     }
@@ -710,6 +714,7 @@ app.put('/api/goals/:id/deposit', authenticateToken, (req, res) => {
 app.delete('/api/goals/:id', authenticateToken, (req, res) => {
   db.run(`DELETE FROM financial_goals WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id], function (err) {
     if (err) return res.status(500).json({ error: 'Failed to delete goal' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Goal not found or unauthorized' });
     res.json({ message: 'Goal deleted' });
   });
 });
@@ -719,7 +724,7 @@ app.delete('/api/goals/:id', authenticateToken, (req, res) => {
 app.get('/api/credit-cards', authenticateToken, (req, res) => {
   db.all(`SELECT * FROM credit_cards WHERE user_id = ? ORDER BY due_date ASC`, [req.user.id], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch credit cards' });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
@@ -753,6 +758,7 @@ app.put('/api/credit-cards/:id/pay', authenticateToken, (req, res) => {
     [req.params.id, req.user.id],
     function (err) {
       if (err) return res.status(500).json({ error: 'Failed to mark card bill as paid' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Credit card bill not found or unauthorized' });
       res.json({ message: 'Bill marked as paid' });
     }
   );
@@ -761,6 +767,7 @@ app.put('/api/credit-cards/:id/pay', authenticateToken, (req, res) => {
 app.delete('/api/credit-cards/:id', authenticateToken, (req, res) => {
   db.run(`DELETE FROM credit_cards WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id], function (err) {
     if (err) return res.status(500).json({ error: 'Failed to delete credit card' });
+    if (this.changes === 0) return res.status(404).json({ error: 'Credit card not found or unauthorized' });
     res.json({ message: 'Credit card deleted' });
   });
 });
