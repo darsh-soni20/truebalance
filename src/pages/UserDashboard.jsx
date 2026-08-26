@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus, Wallet, Share2, Send, Mail } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus, Wallet, Share2, Send, Mail, History, Bookmark, Pin } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -107,8 +107,18 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAdviceHistoryModal, setShowAdviceHistoryModal] = useState(false);
+  const [adviceHistory, setAdviceHistory] = useState([]);
   const [showFirstTimeBudgetModal, setShowFirstTimeBudgetModal] = useState(false);
   const [userBudgetInput, setUserBudgetInput] = useState(user?.monthly_budget ? user.monthly_budget.toString() : '25000');
+
+  const togglePinAdvice = (adviceId) => {
+    if (!user?.id) return;
+    const storageKey = `truebalance_ai_advices_${user.id}`;
+    const updated = adviceHistory.map((item) => (item.id === adviceId ? { ...item, pinned: !item.pinned } : item));
+    setAdviceHistory(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
 
   const getShareText = () => {
     return `📊 TrueBalance Financial Statement (${selectedMonth})\n` +
@@ -827,6 +837,42 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
 
   const topCategoryPctOfBudget = userBudget > 0 ? Math.round((topCategorySpend / userBudget) * 100) : 0;
 
+  const currentAdviceText = totalMonthlySpend === 0
+    ? `🎉 Welcome! Add your first transaction for ${selectedMonth} to generate live financial advice.`
+    : isBudgetExceeded
+    ? `⚠️ Alert: Your monthly spend (₹${totalMonthlySpend.toLocaleString('en-IN')}) has exceeded your ₹${userBudget.toLocaleString('en-IN')} budget limit! Consider pausing non-essential purchases.`
+    : topCategorySpend > 0
+    ? `💡 You spent ${topCategoryPctOfBudget}% of your ₹${userBudget.toLocaleString('en-IN')} monthly budget on ${topCategoryName} (₹${topCategorySpend.toLocaleString('en-IN')}). ${topCategoryName === 'Food & Dining' ? 'Cooking at home could save you ~₹1,800!' : `Managing your ${topCategoryName} expenses can help boost your monthly savings.`}`
+    : `🎉 Great job! You are maintaining a healthy balance with ₹${netBalance > 0 ? netBalance.toLocaleString('en-IN') : 0} in net monthly savings.`;
+
+  useEffect(() => {
+    if (!user?.id || !currentAdviceText) return;
+    const storageKey = `truebalance_ai_advices_${user.id}`;
+    let savedList = [];
+    try {
+      savedList = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } catch (e) {}
+
+    const adviceTag = isBudgetExceeded ? 'Budget Alert' : topCategorySpend > 0 ? 'Category Analysis' : 'Savings Milestone';
+    const exists = savedList.some((item) => item.text === currentAdviceText && item.month === selectedMonth);
+
+    if (!exists) {
+      const newEntry = {
+        id: Date.now(),
+        text: currentAdviceText,
+        tag: adviceTag,
+        month: selectedMonth,
+        timestamp: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+        pinned: false
+      };
+      const updated = [newEntry, ...savedList].slice(0, 30);
+      setAdviceHistory(updated);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } else {
+      setAdviceHistory(savedList);
+    }
+  }, [user?.id, currentAdviceText, selectedMonth]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
@@ -1164,10 +1210,20 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
           <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/30 flex-shrink-0">
             <Bot className="w-6 h-6" />
           </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">AI Smart Financial Advisor</h3>
-              <span className="text-[10px] uppercase font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">Realtime Analysis</span>
+          <div className="space-y-1 flex-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white text-sm">AI Smart Financial Advisor</h3>
+                <span className="text-[10px] uppercase font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">Realtime Analysis</span>
+              </div>
+              <button
+                onClick={() => setShowAdviceHistoryModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-all cursor-pointer"
+                title="View all past advice history"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Past Advice ({adviceHistory.length})</span>
+              </button>
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
               {totalMonthlySpend === 0
@@ -1618,6 +1674,67 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                   <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-md uppercase font-extrabold">Native Share</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI ADVICE HISTORY MODAL */}
+      {showAdviceHistoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 relative max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/30">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-lg">AI Financial Advice History 📜</h3>
+                  <p className="text-xs text-gray-400">Remember and review past financial insights & recommendations</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAdviceHistoryModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+              {adviceHistory.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">No recorded advice history yet. New insights are automatically logged as you manage transactions!</div>
+              ) : (
+                adviceHistory
+                  .slice()
+                  .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        item.pinned
+                          ? 'bg-amber-500/10 border-amber-500/30 dark:bg-amber-500/5'
+                          : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">
+                            {item.tag || 'AI Insight'}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-semibold">{item.timestamp}</span>
+                        </div>
+                        <button
+                          onClick={() => togglePinAdvice(item.id)}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            item.pinned ? 'text-amber-500 bg-amber-500/20' : 'text-gray-400 hover:text-amber-500'
+                          }`}
+                          title={item.pinned ? 'Unpin Advice' : 'Pin Advice to Top'}
+                        >
+                          <Pin className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{item.text}</p>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         </div>
