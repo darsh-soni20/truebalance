@@ -8,17 +8,66 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_expense_tracker_key';
 
+// Validate JWT Secret in production
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'supersecret_expense_tracker_key')) {
+  console.warn('[SECURITY WARNING] Standard default JWT_SECRET detected in production! Please configure a strong JWT_SECRET environment variable.');
+}
+
+// 1. HTTPS Enforcement & Security Headers Middleware
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] && req.headers['x-forwarded-proto'] !== 'https') {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+
+// 2. Security Audit Logger (Auth Attempts, Errors & Traffic Monitoring)
+const logSecurityEvent = (eventType, details) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[SECURITY AUDIT] [${timestamp}] [${eventType}]`, JSON.stringify(details));
+};
+
+// Traffic Monitoring & Error Logging Middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (res.statusCode >= 400) {
+      logSecurityEvent('API_RESPONSE_WARNING', {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        clientIp: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        durationMs: duration
+      });
+    }
+  });
+  next();
+});
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Access token required' });
+  if (!token) {
+    logSecurityEvent('AUTH_UNAUTHORIZED', { path: req.path, ip: req.ip || req.headers['x-forwarded-for'] });
+    return res.status(401).json({ error: 'Access token required' });
+  }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    if (err) {
+      logSecurityEvent('AUTH_INVALID_TOKEN', { path: req.path, ip: req.ip || req.headers['x-forwarded-for'] });
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
     req.user = user;
     next();
   });
@@ -50,6 +99,7 @@ const authRateLimiter = (req, res, next) => {
   }
 
   if (record.count >= maxAttempts) {
+    logSecurityEvent('RATE_LIMIT_EXCEEDED', { ip: clientIp, path: req.path });
     return res.status(429).json({
       error: 'Too many authentication attempts. Please try again after 15 minutes for security.'
     });
@@ -59,17 +109,19 @@ const authRateLimiter = (req, res, next) => {
   next();
 };
 
-const recordFailedAttempt = (ipKey) => {
+const recordFailedAttempt = (ipKey, email = 'unknown') => {
   if (!ipKey) return;
   const now = Date.now();
   const windowMs = 15 * 60 * 1000;
   const record = loginAttemptsMap.get(ipKey) || { count: 0, resetTime: now + windowMs };
   record.count += 1;
   loginAttemptsMap.set(ipKey, record);
+  logSecurityEvent('AUTH_FAILED', { ip: ipKey, email, attemptCount: record.count });
 };
 
-const clearFailedAttempts = (ipKey) => {
+const clearFailedAttempts = (ipKey, email = 'unknown') => {
   if (ipKey) loginAttemptsMap.delete(ipKey);
+  logSecurityEvent('AUTH_SUCCESS', { ip: ipKey, email });
 };
 
 // System Version & In-App Update Checker
