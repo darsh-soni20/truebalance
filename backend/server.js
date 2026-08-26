@@ -134,6 +134,9 @@ const signupRateLimiter = createRateLimiter(60 * 60 * 1000, 3, 'Account Creation
 // 3. AI Generation & OCR Scanner Rate Limiter (Resource Exhaustion Protection: 10 scans / 15 mins)
 const aiOcrRateLimiter = createRateLimiter(15 * 60 * 1000, 10, 'AI Receipt Scanner');
 
+// 4. Authentication Attempt Rate Limiter (Brute-force Protection: 10 attempts / 15 mins)
+const authRateLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Authentication');
+
 const recordFailedAttempt = (ipKey, email = 'unknown') => {
   if (!ipKey) return;
   const now = Date.now();

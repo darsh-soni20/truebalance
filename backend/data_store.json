@@ -1,0 +1,32 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Admin",
+      "email": "admin@tracker.com",
+      "password": "$2b$10$0BtYgSTkQIYqWcLfkA3COOMYrd4.Fg2RC52J7S/coGvzjfWrFXwxy",
+      "role": "admin",
+      "plan": "pro",
+      "monthly_budget": 50000,
+      "is_verified": 1,
+      "created_at": "2026-08-26T18:49:52.689Z"
+    },
+    {
+      "id": 2,
+      "name": "Heri Ghetiya",
+      "email": "user@tracker.com",
+      "password": "$2b$10$gmSCtCaYVYI8WYmMpicN5ejA8GWq6AL.v0xAYLAl3vWyVncQNxgOO",
+      "role": "user",
+      "plan": "free",
+      "monthly_budget": 25000,
+      "is_verified": 1,
+      "created_at": "2026-08-26T18:49:52.862Z"
+    }
+  ],
+  "expenses": [],
+  "group_splits": [],
+  "subscriptions": [],
+  "financial_goals": [],
+  "credit_cards": [],
+  "payments": []
+}
