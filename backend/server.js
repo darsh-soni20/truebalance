@@ -439,6 +439,26 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
   });
 });
 
+app.put('/api/user/profile', authenticateToken, (req, res) => {
+  const { name, email, monthly_budget } = req.body;
+  const newName = sanitizeText(name) || req.user.name;
+  const newEmail = (email || req.user.email).trim().toLowerCase();
+  const newBudget = parsePositiveNumber(monthly_budget, 25000.0);
+
+  db.run(
+    `UPDATE users SET name = ?, email = ?, monthly_budget = ? WHERE id = ?`,
+    [newName, newEmail, newBudget, req.user.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'Failed to update profile' });
+
+      db.get(`SELECT id, name, email, role, plan, monthly_budget, created_at FROM users WHERE id = ?`, [req.user.id], (err, updatedUser) => {
+        if (err || !updatedUser) return res.status(500).json({ error: 'Failed to fetch updated profile' });
+        res.json(updatedUser);
+      });
+    }
+  );
+});
+
 app.put('/api/user/upgrade', authenticateToken, (req, res) => {
   const { plan } = req.body;
   const newPlan = plan === 'pro' ? 'pro' : 'free';

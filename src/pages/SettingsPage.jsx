@@ -26,6 +26,8 @@ export default function SettingsPage({ user, token, onUserUpdated }) {
     setStatus({ type: '', msg: '' });
     setLoading(true);
 
+    const budgetVal = parseFloat(monthlyBudget) > 0 ? parseFloat(monthlyBudget) : 25000;
+
     try {
       const res = await fetch(`${API_BASE}/api/user/profile`, {
         method: 'PUT',
@@ -33,11 +35,20 @@ export default function SettingsPage({ user, token, onUserUpdated }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name, email, monthly_budget: parseFloat(monthlyBudget) })
+        body: JSON.stringify({ name, email, monthly_budget: budgetVal })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403 || data.error?.includes('token')) {
+          const userKey = user?.id || user?.email || 'default_user';
+          localStorage.setItem(`truebalance_budget_val_${userKey}`, budgetVal.toString());
+          if (typeof onUserUpdated === 'function') onUserUpdated({ ...user, name, email, monthly_budget: budgetVal });
+          setStatus({ type: 'success', msg: 'Monthly spending budget saved locally! (Sign in again to sync across devices)' });
+          return;
+        }
+        throw new Error(data.error || 'Failed to update profile');
+      }
 
       setStatus({ type: 'success', msg: 'Profile & monthly spending budget saved!' });
       if (typeof onUserUpdated === 'function') onUserUpdated(data);
