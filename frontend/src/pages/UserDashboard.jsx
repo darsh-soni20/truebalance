@@ -599,31 +599,28 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   };
 
   const exportToPDF = () => {
-    if (filteredExpenses.length === 0) return alert('No records to export');
-
-    const doc = new jsPDF();
-    const now = new Date();
-    const timestampStr = `${now.toLocaleDateString('en-IN')} ${now.toLocaleTimeString('en-IN')}`;
-
-    // Load TrueBalance logo image
-    const img = new Image();
-    img.src = '/assets/logo_light.png';
-
-    const renderDoc = () => {
-      try {
-        doc.addImage(img, 'PNG', 14, 12, 50, 20);
-      } catch (err) {
-        doc.setFontSize(20);
-        doc.setTextColor(34, 197, 94);
-        doc.text('TrueBalance', 14, 22);
+    try {
+      if (!filteredExpenses || filteredExpenses.length === 0) {
+        return alert('No records found for the selected month to export.');
       }
 
-      doc.setFontSize(14);
+      const doc = new jsPDF();
+      const now = new Date();
+      const timestampStr = `${now.toLocaleDateString('en-IN')} ${now.toLocaleTimeString('en-IN')}`;
+
+      // Header Branding
+      doc.setFontSize(22);
+      doc.setTextColor(34, 197, 94);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TrueBalance', 14, 22);
+
+      doc.setFontSize(13);
       doc.setTextColor(15, 23, 42);
       doc.text('FINANCIAL STATEMENT REPORT', 196, 20, { align: 'right' });
 
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setTextColor(100);
+      doc.setFont('helvetica', 'normal');
       doc.text(`Generated: ${timestampStr}`, 196, 26, { align: 'right' });
       doc.text(`Statement Period: ${selectedMonth}`, 196, 31, { align: 'right' });
 
@@ -631,6 +628,7 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
       doc.setLineWidth(0.5);
       doc.line(14, 36, 196, 36);
 
+      // Account Details Box
       doc.setFillColor(248, 250, 252);
       doc.roundedRect(14, 40, 182, 28, 3, 3, 'F');
 
@@ -647,6 +645,7 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
       doc.text(`Total Transactions: ${filteredExpenses.length}`, 120, 54);
       doc.text(`Monthly Budget Limit: Rs ${userBudget.toLocaleString('en-IN')}`, 120, 60);
 
+      // Metrics Summary Cards
       doc.setFillColor(240, 253, 244);
       doc.roundedRect(14, 73, 42, 22, 2, 2, 'F');
       doc.setFontSize(8);
@@ -686,24 +685,28 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
       doc.setFont('helvetica', 'bold');
       doc.text(`${healthScore} / 100`, 156, 89);
 
+      // Transactions Table
       const tableHeaders = [['Date & Time', 'Type', 'Category', 'Description', 'Amount (Rs)']];
       const tableRows = filteredExpenses.map((exp) => [
         `${exp.date} ${exp.time}`,
         (exp.type || 'expense').toUpperCase(),
-        exp.category,
+        exp.category || 'Other',
         exp.description || '—',
-        `${exp.type === 'income' ? '+' : '-'}Rs ${exp.amount.toFixed(2)}`
+        `${exp.type === 'income' ? '+' : '-'}Rs ${parseFloat(exp.amount || 0).toFixed(2)}`
       ]);
 
-      autoTable(doc, {
-        startY: 102,
-        head: tableHeaders,
-        body: tableRows,
-        headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        bodyStyles: { fontSize: 8.5 },
-        margin: { top: 102 }
-      });
+      const applyAutoTable = typeof autoTable === 'function' ? autoTable : (autoTable.default || autoTable);
+      if (typeof applyAutoTable === 'function') {
+        applyAutoTable(doc, {
+          startY: 102,
+          head: tableHeaders,
+          body: tableRows,
+          headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          bodyStyles: { fontSize: 8.5 },
+          margin: { top: 102 }
+        });
+      }
 
       const pageCount = doc.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
@@ -715,13 +718,9 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
       }
 
       doc.save(`TrueBalance_statement_${selectedMonth}.pdf`);
-    };
-
-    if (img.complete) {
-      renderDoc();
-    } else {
-      img.onload = renderDoc;
-      img.onerror = renderDoc;
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+      alert('Could not generate PDF statement. Please try refreshing or exporting CSV.');
     }
   };
 
