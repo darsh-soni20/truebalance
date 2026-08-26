@@ -811,8 +811,21 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   const healthColor = healthScore >= 75 ? 'text-emerald-500' : healthScore >= 50 ? 'text-amber-500' : 'text-red-500';
 
   const foodSpend = pieDataMap['Food & Dining'] || 0;
-  const foodPercent = totalMonthlySpend > 0 ? Math.round((foodSpend / totalMonthlySpend) * 100) : 0;
+  const foodBudgetPercent = userBudget > 0 ? Math.round((foodSpend / userBudget) * 100) : 0;
+  const foodSpendPercent = totalMonthlySpend > 0 ? Math.round((foodSpend / totalMonthlySpend) * 100) : 0;
   const predictedNextMonthSpend = Math.round((totalMonthlySpend > 0 ? totalMonthlySpend * 1.05 : 18500));
+
+  // Determine dominant spending category
+  let topCategoryName = 'Food & Dining';
+  let topCategorySpend = 0;
+  Object.keys(pieDataMap).forEach((cat) => {
+    if (pieDataMap[cat] > topCategorySpend) {
+      topCategorySpend = pieDataMap[cat];
+      topCategoryName = cat;
+    }
+  });
+
+  const topCategoryPctOfBudget = userBudget > 0 ? Math.round((topCategorySpend / userBudget) * 100) : 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -1157,10 +1170,12 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
               <span className="text-[10px] uppercase font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">Realtime Analysis</span>
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              {foodPercent > 30
-                ? `💡 You spent ${foodPercent}% of your monthly budget on Food & Dining (₹${foodSpend.toLocaleString('en-IN')}). Cooking at home could save you ~₹1,800 this month!`
+              {totalMonthlySpend === 0
+                ? `🎉 Welcome! Add your first transaction for ${selectedMonth} to generate live financial advice.`
                 : isBudgetExceeded
-                ? `⚠️ Your monthly spending has exceeded your ₹${userBudget.toLocaleString('en-IN')} limit! Consider pausing non-essential shopping purchases.`
+                ? `⚠️ Alert: Your monthly spend (₹${totalMonthlySpend.toLocaleString('en-IN')}) has exceeded your ₹${userBudget.toLocaleString('en-IN')} budget limit! Consider pausing non-essential purchases.`
+                : topCategorySpend > 0
+                ? `💡 You spent ${topCategoryPctOfBudget}% of your ₹${userBudget.toLocaleString('en-IN')} monthly budget on ${topCategoryName} (₹${topCategorySpend.toLocaleString('en-IN')}). ${topCategoryName === 'Food & Dining' ? 'Cooking at home could save you ~₹1,800!' : `Managing your ${topCategoryName} expenses can help boost your monthly savings.`}`
                 : `🎉 Great job! You are maintaining a healthy balance with ₹${netBalance > 0 ? netBalance.toLocaleString('en-IN') : 0} in net monthly savings.`}
             </p>
           </div>
