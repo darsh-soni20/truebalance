@@ -143,6 +143,19 @@ const db = {
     }
 
     // 3. UPDATE users
+    if (q.includes('UPDATE users SET monthly_budget = ? WHERE id = ?')) {
+      const [budget, userId] = params;
+      const idx = store.users.findIndex(u => u.id == userId);
+      if (idx !== -1) {
+        store.users[idx].monthly_budget = parseFloat(budget || 25000.0);
+        persistStore();
+        if (typeof callback === 'function') callback.call({ lastID: userId, changes: 1 }, null);
+      } else {
+        if (typeof callback === 'function') callback.call({ lastID: 0, changes: 0 }, null);
+      }
+      return;
+    }
+
     if (q.includes('UPDATE users SET name = ?, email = ?, monthly_budget = ? WHERE id = ?')) {
       const [name, email, budget, userId] = params;
       const idx = store.users.findIndex(u => u.id == userId);

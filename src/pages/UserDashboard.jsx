@@ -165,24 +165,27 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   }, [user]);
 
   const handleSaveFirstTimeBudget = async (e) => {
-    e.preventDefault();
-    if (!userBudgetInput || parseFloat(userBudgetInput) <= 0) return;
+    if (e && e.preventDefault) e.preventDefault();
+    const budgetVal = parseFloat(userBudgetInput) > 0 ? parseFloat(userBudgetInput) : 25000;
+
+    if (user?.id) {
+      localStorage.setItem(`truebalance_budget_configured_${user.id}`, 'true');
+      localStorage.setItem(`truebalance_budget_val_${user.id}`, budgetVal.toString());
+    }
+
+    setShowFirstTimeBudgetModal(false);
 
     try {
-      const res = await fetch(`${API_BASE}/api/user/budget`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ monthly_budget: parseFloat(userBudgetInput) })
-      });
-      const updatedUser = await res.json();
-      if (res.ok && updatedUser) {
-        localStorage.setItem(`truebalance_budget_configured_${user.id}`, 'true');
-        setShowFirstTimeBudgetModal(false);
-        window.location.reload();
+      if (token) {
+        await fetch(`${API_BASE}/api/user/budget`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ monthly_budget: budgetVal })
+        });
       }
-    } catch (err) {
-      setShowFirstTimeBudgetModal(false);
-    }
+    } catch (err) {}
+
+    window.location.reload();
   };
 
   // Modal Form States
@@ -1592,7 +1595,8 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
               </div>
 
               <button
-                type="submit"
+                type="button"
+                onClick={handleSaveFirstTimeBudget}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 cursor-pointer transition-all flex items-center justify-center gap-2"
               >
                 <span>Save Budget & Open Dashboard 🚀</span>
