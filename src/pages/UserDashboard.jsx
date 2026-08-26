@@ -156,22 +156,30 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   };
 
   useEffect(() => {
-    if (user?.id) {
-      const hasConfigured = localStorage.getItem(`truebalance_budget_configured_${user.id}`);
-      if (!hasConfigured) {
-        setShowFirstTimeBudgetModal(true);
-      }
+    const userKey = user?.id || user?.email || 'default_user';
+    const hasConfigured = localStorage.getItem(`truebalance_budget_configured_${userKey}`) || localStorage.getItem('truebalance_budget_global');
+    if (!hasConfigured) {
+      setShowFirstTimeBudgetModal(true);
+    } else {
+      setShowFirstTimeBudgetModal(false);
     }
   }, [user]);
+
+  const handleDismissBudgetModal = () => {
+    const userKey = user?.id || user?.email || 'default_user';
+    localStorage.setItem(`truebalance_budget_configured_${userKey}`, 'true');
+    localStorage.setItem('truebalance_budget_global', 'true');
+    setShowFirstTimeBudgetModal(false);
+  };
 
   const handleSaveFirstTimeBudget = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     const budgetVal = parseFloat(userBudgetInput) > 0 ? parseFloat(userBudgetInput) : 25000;
 
-    if (user?.id) {
-      localStorage.setItem(`truebalance_budget_configured_${user.id}`, 'true');
-      localStorage.setItem(`truebalance_budget_val_${user.id}`, budgetVal.toString());
-    }
+    const userKey = user?.id || user?.email || 'default_user';
+    localStorage.setItem(`truebalance_budget_configured_${userKey}`, 'true');
+    localStorage.setItem('truebalance_budget_global', 'true');
+    localStorage.setItem(`truebalance_budget_val_${userKey}`, budgetVal.toString());
 
     setShowFirstTimeBudgetModal(false);
 
@@ -184,8 +192,6 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
         });
       }
     } catch (err) {}
-
-    window.location.reload();
   };
 
   // Modal Form States
@@ -1565,8 +1571,17 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
       {/* First-Time Login / Dashboard Budget Setup Modal */}
       {showFirstTimeBudgetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-5">
-            <div className="text-center space-y-2">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-5 relative">
+            
+            <button
+              onClick={handleDismissBudgetModal}
+              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl cursor-pointer"
+              title="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-2 pt-2">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto">
                 <Wallet className="w-6 h-6" />
               </div>
@@ -1600,6 +1615,14 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 cursor-pointer transition-all flex items-center justify-center gap-2"
               >
                 <span>Save Budget & Open Dashboard 🚀</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDismissBudgetModal}
+                className="w-full py-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-center block cursor-pointer"
+              >
+                Skip for now & use default (₹25,000)
               </button>
             </form>
           </div>
