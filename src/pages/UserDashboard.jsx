@@ -1270,16 +1270,8 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                 className="pl-9 pr-4 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
-            <button onClick={exportToCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition-colors cursor-pointer" title="Download CSV">
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
-            </button>
-            <button onClick={exportToPDF} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer" title="Download PDF">
-              <FileDown className="w-3.5 h-3.5" />
-              <span>PDF</span>
-            </button>
-            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-semibold transition-colors cursor-pointer" title="Share via WhatsApp, Gmail, or Apps">
-              <Share2 className="w-3.5 h-3.5" />
+            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-indigo-500/15 to-purple-500/15 border border-emerald-500/20 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition-all shadow-sm cursor-pointer" title="Export PDF, CSV, or Share via WhatsApp, Gmail, Apps">
+              <Share2 className="w-3.5 h-3.5 text-emerald-500" />
               <span>Share & Export 📤</span>
             </button>
           </div>
