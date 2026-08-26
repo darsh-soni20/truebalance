@@ -124,7 +124,7 @@ export default function Login({ onLoginSuccess }) {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
       if (!res.ok) throw new Error(data.error || 'Google Authentication failed');
 
       setShowGoogleModal(false);

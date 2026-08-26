@@ -56,7 +56,7 @@ export default function Login({ onLoginSuccess }) {
         body: JSON.stringify({ email: cleanEmail, password: password.trim() })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
       if (!res.ok) throw new Error(data.error || 'Login failed');
 
       onLoginSuccess(data.token, data.user);
@@ -93,7 +93,7 @@ export default function Login({ onLoginSuccess }) {
         })
       });
 
-      const data = await res.json();
+      const data = await safeJsonResponse(res);
       if (!res.ok) throw new Error(data.error || 'Google Authentication failed');
 
       setShowGoogleModal(false);

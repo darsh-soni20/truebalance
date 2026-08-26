@@ -27,3 +27,29 @@ export async function apiFetch(url, options = {}, retries = 3) {
     }
   }
 }
+
+// Safe JSON response parser that handles HTML error pages gracefully
+export async function safeJsonResponse(res) {
+  const contentType = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (e) {}
+  }
+  
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    if (res.status === 502 || res.status === 503) {
+      throw new Error('Backend server is waking up. Please try again in a few seconds 🔄');
+    }
+    if (res.status === 429) {
+      throw new Error('Too many requests. Please wait a moment and try again.');
+    }
+    if (!res.ok) {
+      throw new Error(`Server response error (${res.status}). Please try again.`);
+    }
+    throw new Error('Invalid response received from server.');
+  }
+}
