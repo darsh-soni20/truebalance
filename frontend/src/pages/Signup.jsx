@@ -87,6 +87,37 @@ export default function Signup() {
   };
 
   const handleGoogleRedirect = () => {
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '717467389270-d7a0v43g7q7k5k50k.apps.googleusercontent.com',
+          callback: async (response) => {
+            if (response && response.credential) {
+              try {
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                const payload = JSON.parse(jsonPayload);
+                if (payload && payload.email) {
+                  handleGoogleAuth(payload.email, payload.name || payload.given_name);
+                  return;
+                }
+              } catch (e) {}
+            }
+            setShowGoogleModal(true);
+          }
+        });
+
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            setShowGoogleModal(true);
+          }
+        });
+        return;
+      } catch (err) {
+        console.error('Google One-Tap error:', err);
+      }
+    }
     setShowGoogleModal(true);
   };
 
