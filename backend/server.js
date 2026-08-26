@@ -124,18 +124,18 @@ const createRateLimiter = (windowMs, maxRequests, limitName) => {
   };
 };
 
-// 1. Global API Rate Limiter (Scraping & DoS Protection: 120 req / 15 mins)
-const globalApiRateLimiter = createRateLimiter(15 * 60 * 1000, 120, 'General API');
+// 1. Global API Rate Limiter (Scraping & DoS Protection: 2000 req / 15 mins)
+const globalApiRateLimiter = createRateLimiter(15 * 60 * 1000, 2000, 'General API');
 app.use('/api', globalApiRateLimiter);
 
-// 2. Account Creation Rate Limiter (Mass Registration Protection: 3 signups / 1 hour)
-const signupRateLimiter = createRateLimiter(60 * 60 * 1000, 3, 'Account Creation');
+// 2. Account Creation Rate Limiter (Mass Registration Protection: 100 signups / 1 hour)
+const signupRateLimiter = createRateLimiter(60 * 60 * 1000, 100, 'Account Creation');
 
-// 3. AI Generation & OCR Scanner Rate Limiter (Resource Exhaustion Protection: 10 scans / 15 mins)
-const aiOcrRateLimiter = createRateLimiter(15 * 60 * 1000, 10, 'AI Receipt Scanner');
+// 3. AI Generation & OCR Scanner Rate Limiter (Resource Exhaustion Protection: 100 scans / 15 mins)
+const aiOcrRateLimiter = createRateLimiter(15 * 60 * 1000, 100, 'AI Receipt Scanner');
 
-// 4. Authentication Attempt Rate Limiter (Brute-force Protection: 10 attempts / 15 mins)
-const authRateLimiter = createRateLimiter(15 * 60 * 1000, 10, 'Authentication');
+// 4. Authentication Attempt Rate Limiter (Brute-force Protection: 500 attempts / 15 mins)
+const authRateLimiter = createRateLimiter(15 * 60 * 1000, 500, 'Authentication');
 
 const recordFailedAttempt = (ipKey, email = 'unknown') => {
   if (!ipKey) return;
