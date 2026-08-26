@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus, Wallet } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, X, Calendar, Clock, IndianRupee, Tag, FileText, PieChart as PieIcon, Filter, Search, Download, AlertTriangle, Target, UploadCloud, Users, ArrowUpRight, ArrowDownLeft, Sparkles, Receipt, FileDown, Image, Check, Zap, Flame, Award, ShieldCheck, Bot, CreditCard, RefreshCw, Landmark, Compass, PiggyBank, Eye, Plus, Wallet, Share2, Send, Mail } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -106,8 +106,44 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
   const [showSubModal, setShowSubModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [showFirstTimeBudgetModal, setShowFirstTimeBudgetModal] = useState(false);
   const [userBudgetInput, setUserBudgetInput] = useState(user?.monthly_budget ? user.monthly_budget.toString() : '25000');
+
+  const getShareText = () => {
+    return `📊 TrueBalance Financial Statement (${selectedMonth})\n` +
+      `👤 Account: ${user?.name || 'User'} (${user?.email || ''})\n\n` +
+      `💰 Total Income: +₹${totalIncome.toLocaleString('en-IN')}\n` +
+      `💸 Total Spend: -₹${totalMonthlySpend.toLocaleString('en-IN')}\n` +
+      `📈 Net Balance: ${netBalance >= 0 ? '+' : '-'}₹${Math.abs(netBalance).toLocaleString('en-IN')}\n` +
+      `🛡️ Health Score: ${healthScore}/100 (${healthLabel})\n\n` +
+      `👉 View & Download on TrueBalance: https://truebalance-fi.vercel.app`;
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = encodeURIComponent(getShareText());
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleShareGmail = () => {
+    const subject = encodeURIComponent(`TrueBalance Financial Statement — ${selectedMonth}`);
+    const body = encodeURIComponent(getShareText());
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&su=${subject}&body=${body}`, '_blank');
+  };
+
+  const handleNativeSystemShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `TrueBalance Financial Statement (${selectedMonth})`,
+          text: getShareText(),
+          url: 'https://truebalance-fi.vercel.app'
+        });
+      } catch (err) {}
+    } else {
+      handleShareWhatsApp();
+    }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -1234,13 +1270,17 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                 className="pl-9 pr-4 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
-            <button onClick={exportToCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition-colors cursor-pointer">
+            <button onClick={exportToCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold transition-colors cursor-pointer" title="Download CSV">
               <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
+              <span>CSV</span>
             </button>
-            <button onClick={exportToPDF} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer">
+            <button onClick={exportToPDF} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer" title="Download PDF">
               <FileDown className="w-3.5 h-3.5" />
-              <span>Export PDF</span>
+              <span>PDF</span>
+            </button>
+            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-semibold transition-colors cursor-pointer" title="Share via WhatsApp, Gmail, or Apps">
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share & Export 📤</span>
             </button>
           </div>
         </div>
@@ -1495,6 +1535,83 @@ export default function UserDashboard({ token, user, openSplitTrigger, openScann
                 <span>Save Budget & Open Dashboard 🚀</span>
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* SHARE & EXPORT STATEMENT MODAL */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500">
+                  <Share2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-lg">Export & Share Statement</h3>
+                  <p className="text-xs text-gray-400">Statement Period: {selectedMonth}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowExportModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Download Statement File</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => { exportToPDF(); setShowExportModal(false); }}
+                  className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-xs border border-indigo-500/20 cursor-pointer transition-all"
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span>Download PDF</span>
+                </button>
+                <button
+                  onClick={() => { exportToCSV(); setShowExportModal(false); }}
+                  className="flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs border border-emerald-500/20 cursor-pointer transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download CSV</span>
+                </button>
+              </div>
+
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 pt-2">Share Monthly Summary</p>
+              <div className="space-y-2.5">
+                <button
+                  onClick={handleShareWhatsApp}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Send className="w-4 h-4" />
+                    <span>Share to WhatsApp 📲</span>
+                  </div>
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md uppercase font-extrabold">Instant</span>
+                </button>
+
+                <button
+                  onClick={handleShareGmail}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-600/20 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="w-4 h-4" />
+                    <span>Share to Gmail ✉️</span>
+                  </div>
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md uppercase font-extrabold">Compose</span>
+                </button>
+
+                <button
+                  onClick={handleNativeSystemShare}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs border border-gray-700 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Share2 className="w-4 h-4 text-emerald-400" />
+                    <span>More Mobile Apps & Drive 📱</span>
+                  </div>
+                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-md uppercase font-extrabold">Native Share</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
