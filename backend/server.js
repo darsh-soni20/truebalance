@@ -83,31 +83,55 @@ const requireAdmin = (req, res, next) => {
 
 const crypto = require('crypto');
 
-// In-Memory Security Rate Limiter (Brute-Force Protection)
-const loginAttemptsMap = new Map();
-const authRateLimiter = (req, res, next) => {
-  const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const windowMs = 15 * 60 * 1000; // 15 minutes
-  const maxAttempts = 5;
-
-  const record = loginAttemptsMap.get(clientIp) || { count: 0, resetTime: now + windowMs };
-
-  if (now > record.resetTime) {
-    record.count = 0;
-    record.resetTime = now + windowMs;
+// Bot Protection & Anti-Scraping Middleware
+const BLOCKED_BOT_AGENTS = [/python-requests/i, /scrapy/i, /nikto/i, /sqlmap/i, /nmap/i, /dirbuster/i, /masscan/i];
+const botProtectionMiddleware = (req, res, next) => {
+  const userAgent = req.headers['user-agent'] || '';
+  if (BLOCKED_BOT_AGENTS.some((botPattern) => botPattern.test(userAgent))) {
+    logSecurityEvent('BOT_ACCESS_BLOCKED', { ip: req.ip || req.headers['x-forwarded-for'], userAgent, path: req.path });
+    return res.status(403).json({ error: 'Automated script or bot access detected and blocked.' });
   }
-
-  if (record.count >= maxAttempts) {
-    logSecurityEvent('RATE_LIMIT_EXCEEDED', { ip: clientIp, path: req.path });
-    return res.status(429).json({
-      error: 'Too many authentication attempts. Please try again after 15 minutes for security.'
-    });
-  }
-
-  req.rateLimitKey = clientIp;
   next();
 };
+
+app.use(botProtectionMiddleware);
+
+// Generic Sliding Window Rate Limiter Factory
+const createRateLimiter = (windowMs, maxRequests, limitName) => {
+  const requestsMap = new Map();
+  return (req, res, next) => {
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const record = requestsMap.get(clientIp) || { count: 0, resetTime: now + windowMs };
+
+    if (now > record.resetTime) {
+      record.count = 0;
+      record.resetTime = now + windowMs;
+    }
+
+    record.count += 1;
+    requestsMap.set(clientIp, record);
+
+    if (record.count > maxRequests) {
+      logSecurityEvent('ABUSE_RATE_LIMIT_EXCEEDED', { limitName, ip: clientIp, path: req.path, count: record.count });
+      return res.status(429).json({
+        error: `Too many requests for ${limitName}. Please try again later to prevent abuse.`
+      });
+    }
+
+    next();
+  };
+};
+
+// 1. Global API Rate Limiter (Scraping & DoS Protection: 120 req / 15 mins)
+const globalApiRateLimiter = createRateLimiter(15 * 60 * 1000, 120, 'General API');
+app.use('/api', globalApiRateLimiter);
+
+// 2. Account Creation Rate Limiter (Mass Registration Protection: 3 signups / 1 hour)
+const signupRateLimiter = createRateLimiter(60 * 60 * 1000, 3, 'Account Creation');
+
+// 3. AI Generation & OCR Scanner Rate Limiter (Resource Exhaustion Protection: 10 scans / 15 mins)
+const aiOcrRateLimiter = createRateLimiter(15 * 60 * 1000, 10, 'AI Receipt Scanner');
 
 const recordFailedAttempt = (ipKey, email = 'unknown') => {
   if (!ipKey) return;
@@ -138,7 +162,7 @@ app.get('/api/system/version', (req, res) => {
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-app.post('/api/auth/signup', authRateLimiter, async (req, res) => {
+app.post('/api/auth/signup', signupRateLimiter, authRateLimiter, async (req, res) => {
   const { name, email, password, role, monthly_budget } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Please provide name, email, and password' });
@@ -565,7 +589,7 @@ app.delete('/api/expenses/:id', authenticateToken, (req, res) => {
 });
 
 // --- ADVANCED AI OCR RECEIPT & DOCUMENT SCANNER PARSER API ---
-app.post('/api/expenses/ocr', authenticateToken, (req, res) => {
+app.post('/api/expenses/ocr', authenticateToken, aiOcrRateLimiter, (req, res) => {
   const { imageText, filename } = req.body;
 
   if ((!imageText || !imageText.trim()) && (!filename || !filename.trim())) {
