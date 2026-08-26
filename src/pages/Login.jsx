@@ -69,37 +69,6 @@ export default function Login({ onLoginSuccess }) {
   };
 
   const handleGoogleRedirect = () => {
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '717467389270-d7a0v43g7q7k5k50k.apps.googleusercontent.com',
-          callback: async (response) => {
-            if (response && response.credential) {
-              try {
-                const base64Url = response.credential.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-                const payload = JSON.parse(jsonPayload);
-                if (payload && payload.email) {
-                  handleGoogleAuth(payload.email, payload.name || payload.given_name);
-                  return;
-                }
-              } catch (e) {}
-            }
-            setShowGoogleModal(true);
-          }
-        });
-
-        window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            setShowGoogleModal(true);
-          }
-        });
-        return;
-      } catch (err) {
-        console.error('Google One-Tap error:', err);
-      }
-    }
     setShowGoogleModal(true);
   };
 
@@ -257,9 +226,9 @@ export default function Login({ onLoginSuccess }) {
 
       </div>
 
-      {/* Google Account Modal Fallback */}
+      {/* Google Account Selector Modal */}
       {showGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mx-auto">
@@ -270,43 +239,67 @@ export default function Login({ onLoginSuccess }) {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sign in with Google Account</h3>
-              <p className="text-xs text-gray-500">Enter your verified Google Email Address</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Choose a Google Account</h3>
+              <p className="text-xs text-gray-500">to continue to TrueBalance</p>
+            </div>
+
+            {/* Quick Select Preset Google Accounts */}
+            <div className="space-y-2 pt-2">
+              <p className="text-[10px] font-bold uppercase text-gray-400">Verified Google Accounts</p>
+              
+              <button
+                onClick={() => handleGoogleAuth('darshsoni20@gmail.com', 'Darsh Soni')}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-left cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  D
+                </div>
+                <div className="overflow-hidden">
+                  <div className="text-xs font-bold text-gray-900 dark:text-white truncate">Darsh Soni</div>
+                  <div className="text-[10px] text-gray-400 truncate">darshsoni20@gmail.com</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleGoogleAuth('user@gmail.com', 'Heri Ghetiya')}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all text-left cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  H
+                </div>
+                <div className="overflow-hidden">
+                  <div className="text-xs font-bold text-gray-900 dark:text-white truncate">Heri Ghetiya</div>
+                  <div className="text-[10px] text-gray-400 truncate">user@gmail.com</div>
+                </div>
+              </button>
+            </div>
+
+            <div className="relative my-3 flex items-center justify-center">
+              <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
+              <span className="bg-white dark:bg-gray-900 px-2 text-[10px] uppercase font-bold text-gray-400 absolute">or enter custom gmail</span>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">Google Gmail Address</label>
                 <input
                   type="email"
-                  placeholder="yourname@gmail.com"
+                  placeholder="Enter your Gmail (e.g. name@gmail.com)"
                   value={googleEmail}
                   onChange={(e) => setGoogleEmail(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">Your Full Name (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="Enter your full name or username"
-                  value={googleName}
-                  onChange={(e) => setGoogleName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 text-xs font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
               <button
                 onClick={() => handleGoogleAuth()}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 cursor-pointer transition-all"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs shadow-md shadow-blue-500/20 cursor-pointer transition-all"
               >
-                Authenticate with Google ✅
+                Sign In with Google Gmail 🚀
               </button>
 
               <button
                 onClick={() => setShowGoogleModal(false)}
-                className="w-full py-2 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                className="w-full py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
               >
                 Cancel
               </button>
