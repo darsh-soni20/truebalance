@@ -159,6 +159,48 @@ app.get('/api/system/version', (req, res) => {
   });
 });
 
+// --- INPUT VALIDATION & SANITIZATION UTILITIES ---
+
+// 1. Text & XSS Script Injection Sanitizer
+const sanitizeText = (input = '') => {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .trim();
+};
+
+// 2. Filename Sanitizer (Path Traversal & Command Injection Protection)
+const sanitizeFilename = (filename = '') => {
+  if (typeof filename !== 'string') return 'file.txt';
+  return filename
+    .replace(/[\/\\]/g, '')
+    .replace(/\.\./g, '')
+    .replace(/[^\w\.\-]/gi, '_')
+    .slice(0, 100);
+};
+
+// 3. ISO Date Format Validator (YYYY-MM-DD)
+const validateIsoDate = (dateStr) => {
+  if (typeof dateStr !== 'string') return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && !isNaN(Date.parse(dateStr));
+};
+
+// 4. Time Format Validator (HH:MM)
+const validateTimeStr = (timeStr) => {
+  if (typeof timeStr !== 'string') return false;
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr);
+};
+
+// 5. Positive Number Parser
+const parsePositiveNumber = (val, defaultVal = null) => {
+  const num = parseFloat(val);
+  if (isNaN(num) || !isFinite(num) || num < 0) return defaultVal;
+  return num;
+};
+
 // --- SECURE AUTHENTICATION ROUTES ---
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -524,25 +566,43 @@ app.get('/api/expenses', authenticateToken, (req, res) => {
 
 app.post('/api/expenses', authenticateToken, (req, res) => {
   const { amount, category, description, date, time, type } = req.body;
-  if (!amount || !category || !date || !time) {
-    return res.status(400).json({ error: 'Please provide amount, category, date, and time' });
+  
+  const parsedAmount = parsePositiveNumber(amount);
+  if (parsedAmount === null) {
+    return res.status(400).json({ error: 'Please provide a valid numeric amount' });
   }
 
+  const cleanCategory = sanitizeText(category);
+  if (!cleanCategory) {
+    return res.status(400).json({ error: 'Category is required' });
+  }
+
+  if (date && !validateIsoDate(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD' });
+  }
+
+  if (time && !validateTimeStr(time)) {
+    return res.status(400).json({ error: 'Invalid time format. Expected HH:MM' });
+  }
+
+  const cleanDescription = sanitizeText(description);
   const transactionType = type === 'income' ? 'income' : 'expense';
+  const cleanDate = date || new Date().toISOString().split('T')[0];
+  const cleanTime = time || new Date().toTimeString().split(' ')[0].slice(0, 5);
 
   db.run(
     `INSERT INTO expenses (user_id, amount, category, description, date, time, type) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [req.user.id, parseFloat(amount), category, description || '', date, time, transactionType],
+    [req.user.id, parsedAmount, cleanCategory, cleanDescription, cleanDate, cleanTime, transactionType],
     function (err) {
       if (err) return res.status(500).json({ error: 'Failed to save transaction' });
       res.status(201).json({
         id: this.lastID,
         user_id: req.user.id,
-        amount: parseFloat(amount),
-        category,
-        description: description || '',
-        date,
-        time,
+        amount: parsedAmount,
+        category: cleanCategory,
+        description: cleanDescription,
+        date: cleanDate,
+        time: cleanTime,
         type: transactionType
       });
     }
@@ -551,26 +611,44 @@ app.post('/api/expenses', authenticateToken, (req, res) => {
 
 app.put('/api/expenses/:id', authenticateToken, (req, res) => {
   const { amount, category, description, date, time, type } = req.body;
-  if (!amount || !category || !date || !time) {
-    return res.status(400).json({ error: 'Please provide amount, category, date, and time' });
+  
+  const parsedAmount = parsePositiveNumber(amount);
+  if (parsedAmount === null) {
+    return res.status(400).json({ error: 'Please provide a valid numeric amount' });
   }
 
+  const cleanCategory = sanitizeText(category);
+  if (!cleanCategory) {
+    return res.status(400).json({ error: 'Category is required' });
+  }
+
+  if (date && !validateIsoDate(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD' });
+  }
+
+  if (time && !validateTimeStr(time)) {
+    return res.status(400).json({ error: 'Invalid time format. Expected HH:MM' });
+  }
+
+  const cleanDescription = sanitizeText(description);
   const transactionType = type === 'income' ? 'income' : 'expense';
+  const cleanDate = date || new Date().toISOString().split('T')[0];
+  const cleanTime = time || new Date().toTimeString().split(' ')[0].slice(0, 5);
 
   db.run(
     `UPDATE expenses SET amount = ?, category = ?, description = ?, date = ?, time = ?, type = ? WHERE id = ? AND user_id = ?`,
-    [parseFloat(amount), category, description || '', date, time, transactionType, req.params.id, req.user.id],
+    [parsedAmount, cleanCategory, cleanDescription, cleanDate, cleanTime, transactionType, req.params.id, req.user.id],
     function (err) {
       if (err) return res.status(500).json({ error: 'Failed to update transaction' });
       if (this.changes === 0) return res.status(404).json({ error: 'Transaction not found or unauthorized' });
       res.json({
         id: parseInt(req.params.id),
         user_id: req.user.id,
-        amount: parseFloat(amount),
-        category,
-        description: description || '',
-        date,
-        time,
+        amount: parsedAmount,
+        category: cleanCategory,
+        description: cleanDescription,
+        date: cleanDate,
+        time: cleanTime,
         type: transactionType
       });
     }
@@ -593,8 +671,11 @@ app.delete('/api/expenses/:id', authenticateToken, (req, res) => {
 app.post('/api/expenses/ocr', authenticateToken, aiOcrRateLimiter, (req, res) => {
   const { imageText, filename } = req.body;
 
-  if ((!imageText || !imageText.trim()) && (!filename || !filename.trim())) {
-    return res.status(400).json({ error: 'Please upload a receipt file or paste text to scan.' });
+  const cleanText = sanitizeText(imageText || '');
+  const cleanFilename = sanitizeFilename(filename || '');
+
+  if (!cleanText && !cleanFilename) {
+    return res.status(400).json({ error: 'Please upload a valid receipt file or paste valid text to scan.' });
   }
 
   let amount = 0;
