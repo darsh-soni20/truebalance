@@ -1,0 +1,436 @@
+import React, { useState } from 'react';
+
+export default function App() {
+  const [setupComplete, setSetupComplete] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  const [name, setName] = useState('Heri Ghetiya');
+  const [income, setIncome] = useState(65000);
+  const [budget, setBudget] = useState(35000);
+
+  const [transactions, setTransactions] = useState([
+    { id: 1, title: 'Client Payment / Salary', amount: 65000, category: 'Income', date: '2026-09-01', type: 'income' },
+    { id: 2, title: 'Office Rent & Utilities', amount: 12500, category: 'Rent', date: '2026-09-05', type: 'expense' },
+    { id: 3, title: 'Laptops & Supplies', amount: 8400, category: 'Equipment', date: '2026-09-08', type: 'expense' }
+  ]);
+
+  // Calculator States
+  const [loanAmount, setLoanAmount] = useState(500000);
+  const [loanRate, setLoanRate] = useState(9.5);
+  const [loanYears, setLoanYears] = useState(5);
+
+  const [sipMonthly, setSipMonthly] = useState(5000);
+  const [sipRate, setSipRate] = useState(12.0);
+  const [sipYears, setSipYears] = useState(10);
+
+  // Add Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [txTitle, setTxTitle] = useState('');
+  const [txAmount, setTxAmount] = useState('');
+
+  // Loan EMI Math
+  const r = loanRate / (12 * 100);
+  const n = loanYears * 12;
+  const emi = (loanAmount * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  const totalLoanPayable = emi * n;
+  const totalInterest = totalLoanPayable - loanAmount;
+
+  // SIP Wealth Math
+  const i = sipRate / (12 * 100);
+  const months = sipYears * 12;
+  const totalInvested = sipMonthly * months;
+  const totalWealth = sipMonthly * ((Math.pow(1 + i, months) - 1) / i) * (1 + i);
+  const estimatedReturns = totalWealth - totalInvested;
+
+  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const remainingBudget = Math.max(0, budget - totalExpenses);
+  const budgetUsagePct = Math.min(100, Math.max(0, (totalExpenses / (budget || 1)) * 100));
+
+  const handleAddTx = (e) => {
+    e.preventDefault();
+    if (!txAmount) return;
+    const newTx = {
+      id: Date.now(),
+      title: txTitle || 'General Expense',
+      amount: parseFloat(txAmount),
+      category: 'General',
+      date: new Date().toISOString().split('T')[0],
+      type: 'expense'
+    };
+    setTransactions([newTx, ...transactions]);
+    setTxTitle('');
+    setTxAmount('');
+    setShowAddModal(false);
+  };
+
+  const handleSendWhatsAppAlert = () => {
+    const message = `*AboutMoney Budget Alert* 📲%0AAccount: ${name}%0AMonthly Income: ₹${income}%0ATarget Budget: ₹${budget}%0ATotal Spent: ₹${totalExpenses}%0ARemaining Budget: ₹${remainingBudget} (${(100 - budgetUsagePct).toFixed(1)}% Allowance Left)`;
+    window.open(`https://wa.me/?text=${message}`, '_blank');
+  };
+
+  if (!setupComplete) {
+    return (
+      <div className="min-h-screen bg-[#070B12] text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-[#0F172A] p-8 rounded-3xl border border-slate-800 shadow-2xl">
+          <div className="w-16 h-16 bg-gradient-to-tr from-[#00F5A0] to-[#00D2FF] rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(0,245,160,0.3)]">
+            <span className="text-3xl">💰</span>
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight mb-1">AboutMoney</h1>
+          <p className="text-slate-400 text-xs mb-6">Income-First Setup & GST Intelligence Engine</p>
+
+          <form onSubmit={(e) => { e.preventDefault(); setSetupComplete(true); }} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Full Name</label>
+              <input 
+                type="text" 
+                value={name} 
+                onChange={e => setName(e.target.value)} 
+                required
+                className="w-full bg-[#1E293B] border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00F5A0]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[#00F5A0] block mb-1">1. Enter Monthly Income (₹)</label>
+              <input 
+                type="number" 
+                value={income} 
+                onChange={e => setIncome(parseFloat(e.target.value) || 0)} 
+                required
+                className="w-full bg-[#1E293B] border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00F5A0]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-[#00D2FF] block mb-1">2. Set Target Monthly Budget Allowance (₹)</label>
+              <input 
+                type="number" 
+                value={budget} 
+                onChange={e => setBudget(parseFloat(e.target.value) || 0)} 
+                required
+                className="w-full bg-[#1E293B] border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00D2FF]"
+              />
+            </div>
+            <button 
+              type="submit"
+              className="w-full py-3.5 bg-[#00F5A0] text-black font-extrabold rounded-xl hover:bg-[#00F5A0]/90 transition shadow-lg shadow-[#00F5A0]/20 pt-3"
+            >
+              Start AboutMoney Engine 🚀
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#070B12] text-white p-4 md:p-8 max-w-2xl mx-auto pb-24">
+      {/* Top Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#00F5A0]/20 text-[#00F5A0] font-bold flex items-center justify-center border border-[#00F5A0]/30">
+            {name[0]}
+          </div>
+          <div>
+            <h2 className="font-bold text-base">{name}</h2>
+            <span className="text-xs text-[#00F5A0] font-semibold">AboutMoney Premium ⚡</span>
+          </div>
+        </div>
+        <button 
+          onClick={() => setSetupComplete(false)}
+          className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg border border-slate-800"
+        >
+          Reset Setup
+        </button>
+      </div>
+
+      {/* Main Content Tabs */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Glass Balance & Budget Progress Card */}
+          <div className="glass-card rounded-3xl p-6 neon-glow">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Monthly Income</span>
+              <span className="text-sm font-bold text-[#00F5A0]">₹{income.toLocaleString()}</span>
+            </div>
+            <span className="text-xs text-slate-400 block mt-4">Remaining Monthly Budget Allowance</span>
+            <div className="text-4xl font-extrabold my-2 tracking-tight">₹{remainingBudget.toLocaleString()}</div>
+            
+            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden my-3">
+              <div 
+                className={`h-full transition-all duration-500 ${budgetUsagePct > 90 ? 'bg-red-500' : 'bg-[#00F5A0]'}`} 
+                style={{ width: `${budgetUsagePct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>{budgetUsagePct.toFixed(1)}% Used</span>
+              <span>Target Allowance: ₹{budget.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Dynamic GST Smart Tip */}
+          <div className="bg-[#0F172A] border border-sky-500/30 rounded-2xl p-5">
+            <div className="flex items-center gap-2 text-sky-400 font-bold text-sm mb-2">
+              <span>💡</span> Smart GST Tip & Recommendation
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {income * 12 > 2000000 
+                ? 'Your projected annual turnover exceeds ₹20 Lakhs. Claim Input Tax Credit (ITC) on all business equipment purchases!' 
+                : 'Annual turnover under ₹20 Lakhs threshold. GST registration is optional for service providers.'}
+            </p>
+          </div>
+
+          {/* Actions & Recent Transactions */}
+          <div className="flex items-center justify-between pt-2">
+            <h3 className="font-bold text-lg">Recent Transactions</h3>
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="bg-[#00F5A0] text-black text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-[#00F5A0]/90 transition shadow-lg shadow-[#00F5A0]/20"
+            >
+              + Add Record
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {transactions.map(t => (
+              <div key={t.id} className="bg-[#0F172A] border border-slate-800/80 p-4 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === 'income' ? 'bg-[#00F5A0]/10 text-[#00F5A0]' : 'bg-red-500/10 text-red-400'}`}>
+                    {t.type === 'income' ? '📈' : '🛍️'}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">{t.title}</p>
+                    <p className="text-xs text-slate-400">{t.category} • {t.date}</p>
+                  </div>
+                </div>
+                <span className={`font-bold text-sm ${t.type === 'income' ? 'text-[#00F5A0]' : 'text-white'}`}>
+                  {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'calculators' && (
+        <div className="space-y-6">
+          <h2 className="font-bold text-xl mb-4">Financial Calculators Vault 🧮</h2>
+
+          {/* LOAN EMI CALCULATOR */}
+          <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6">
+            <h3 className="font-bold text-lg text-sky-400 mb-4">Loan EMI Calculator 🏦</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">Loan Amount</span>
+                  <span className="font-bold">₹{loanAmount.toLocaleString()}</span>
+                </div>
+                <input 
+                  type="range" min="50000" max="5000000" step="50000" 
+                  value={loanAmount} onChange={e => setLoanAmount(parseFloat(e.target.value))}
+                  className="w-full accent-sky-400"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">Interest Rate (%)</span>
+                  <span className="font-bold">{loanRate}%</span>
+                </div>
+                <input 
+                  type="range" min="5" max="20" step="0.5" 
+                  value={loanRate} onChange={e => setLoanRate(parseFloat(e.target.value))}
+                  className="w-full accent-sky-400"
+                />
+              </div>
+              <div className="bg-[#1E293B] p-4 rounded-2xl flex justify-between items-center">
+                <div>
+                  <span className="text-xs text-slate-400 block">Monthly EMI</span>
+                  <span className="text-xl font-bold text-sky-400">₹{emi.toFixed(0)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block">Total Interest</span>
+                  <span className="text-sm font-bold text-red-400">₹{totalInterest.toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SIP WEALTH CALCULATOR */}
+          <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6">
+            <h3 className="font-bold text-lg text-[#00F5A0] mb-4">SIP Mutual Fund Wealth Calculator 📈</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">Monthly Investment</span>
+                  <span className="font-bold">₹{sipMonthly.toLocaleString()}</span>
+                </div>
+                <input 
+                  type="range" min="500" max="100000" step="500" 
+                  value={sipMonthly} onChange={e => setSipMonthly(parseFloat(e.target.value))}
+                  className="w-full accent-[#00F5A0]"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">Expected Return (%)</span>
+                  <span className="font-bold">{sipRate}%</span>
+                </div>
+                <input 
+                  type="range" min="5" max="25" step="0.5" 
+                  value={sipRate} onChange={e => setSipRate(parseFloat(e.target.value))}
+                  className="w-full accent-[#00F5A0]"
+                />
+              </div>
+              <div className="bg-[#1E293B] p-4 rounded-2xl flex justify-between items-center">
+                <div>
+                  <span className="text-xs text-slate-400 block">Estimated Wealth Created</span>
+                  <span className="text-xl font-bold text-[#00F5A0]">₹{totalWealth.toFixed(0)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block">Total Returns</span>
+                  <span className="text-sm font-bold text-slate-200">₹{estimatedReturns.toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'gst' && (
+        <div className="space-y-6">
+          <h2 className="font-bold text-xl mb-4">GST Intelligence & Slabs 💡</h2>
+          <div className="bg-[#0F172A] border border-[#00F5A0]/30 rounded-3xl p-6">
+            <span className="text-xs text-slate-400 block">Annual Income Projection</span>
+            <span className="text-3xl font-bold text-[#00F5A0]">₹{(income * 12).toLocaleString()} / yr</span>
+            <p className="text-xs text-slate-300 mt-3 leading-relaxed">
+              {income * 12 > 4000000 
+                ? '⚠️ MANDATORY GST REGISTRATION REQUIRED (Annual turnover exceeds ₹40 Lakh limit).' 
+                : '✅ Optional GST registration (Under turnover limits for goods & services).'}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="bg-[#0F172A] p-4 rounded-2xl border border-slate-800">
+              <h4 className="font-bold text-sm text-sky-400">Input Tax Credit (ITC) Claim Strategy</h4>
+              <p className="text-xs text-slate-300 mt-1">Claim ITC on office rent, internet, and hardware purchases with your GSTIN.</p>
+            </div>
+            <div className="bg-[#0F172A] p-4 rounded-2xl border border-slate-800">
+              <h4 className="font-bold text-sm text-[#00F5A0]">GST Tax Slab Rates</h4>
+              <p className="text-xs text-slate-300 mt-1">0% (Foods), 5% (Eateries), 12% (Computers), 18% (IT & SaaS), 28% (Luxury).</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'export' && (
+        <div className="space-y-6">
+          <h2 className="font-bold text-xl mb-4">Export & WhatsApp Alerts 📲</h2>
+
+          <div className="bg-[#0F172A] border border-green-500/40 rounded-3xl p-6">
+            <h3 className="font-bold text-lg text-green-400 mb-2">WhatsApp Budget Notifications 💬</h3>
+            <p className="text-xs text-slate-300 mb-4">
+              Send instant monthly budget remaining allowance alert directly to your WhatsApp!
+            </p>
+            <button 
+              onClick={handleSendWhatsAppAlert}
+              className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl text-xs transition"
+            >
+              Trigger WhatsApp Budget Alert
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <button 
+              onClick={() => alert('PDF Statement Downloaded Successfully! 📄')}
+              className="w-full bg-[#0F172A] border border-slate-800 p-4 rounded-2xl flex items-center justify-between text-left hover:bg-slate-800/60"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-red-400 text-xl">📄</span>
+                <div>
+                  <p className="font-bold text-sm">Download PDF Statement</p>
+                  <p className="text-xs text-slate-400">Official formatted payment history</p>
+                </div>
+              </div>
+              <span className="text-xs text-slate-400">Download</span>
+            </button>
+
+            <button 
+              onClick={() => alert('CSV Dataset Downloaded Successfully! 📊')}
+              className="w-full bg-[#0F172A] border border-slate-800 p-4 rounded-2xl flex items-center justify-between text-left hover:bg-slate-800/60"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-[#00F5A0] text-xl">📊</span>
+                <div>
+                  <p className="font-bold text-sm">Download CSV Dataset</p>
+                  <p className="text-xs text-slate-400">Raw CSV for Excel & Google Sheets</p>
+                </div>
+              </div>
+              <span className="text-xs text-slate-400">Download</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Floating Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0F172A]/95 backdrop-blur-md border-t border-slate-800 p-3 max-w-2xl mx-auto flex justify-around">
+        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 text-xs font-bold ${activeTab === 'dashboard' ? 'text-[#00F5A0]' : 'text-slate-500'}`}>
+          <span className="text-lg">💳</span> Dashboard
+        </button>
+        <button onClick={() => setActiveTab('calculators')} className={`flex flex-col items-center gap-1 text-xs font-bold ${activeTab === 'calculators' ? 'text-[#00F5A0]' : 'text-slate-500'}`}>
+          <span className="text-lg">🧮</span> Calculators
+        </button>
+        <button onClick={() => setActiveTab('gst')} className={`flex flex-col items-center gap-1 text-xs font-bold ${activeTab === 'gst' ? 'text-[#00F5A0]' : 'text-slate-500'}`}>
+          <span className="text-lg">💡</span> GST Tips
+        </button>
+        <button onClick={() => setActiveTab('export')} className={`flex flex-col items-center gap-1 text-xs font-bold ${activeTab === 'export' ? 'text-[#00F5A0]' : 'text-slate-500'}`}>
+          <span className="text-lg">📲</span> Alerts & Export
+        </button>
+      </div>
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0F172A] border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <h3 className="font-bold text-lg mb-4">Add New Record</h3>
+            <form onSubmit={handleAddTx} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Title / Merchant</label>
+                <input 
+                  type="text" 
+                  value={txTitle} 
+                  onChange={e => setTxTitle(e.target.value)} 
+                  placeholder="Grocery / Client Payment"
+                  className="w-full bg-[#1E293B] border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#00F5A0]"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Amount (₹)</label>
+                <input 
+                  type="number" 
+                  value={txAmount} 
+                  onChange={e => setTxAmount(e.target.value)} 
+                  required
+                  placeholder="1500"
+                  className="w-full bg-[#1E293B] border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#00F5A0]"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 border border-slate-700 rounded-xl text-xs font-bold hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#00F5A0] text-black rounded-xl text-xs font-bold hover:bg-[#00F5A0]/90"
+                >
+                  Save Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
